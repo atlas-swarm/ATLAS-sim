@@ -1,0 +1,17 @@
+services:
+  atlas-ros:
+    build:
+      context: .
+      dockerfile: docker/ros/Dockerfile
+    container_name: atlas-ros
+    stdin_open: true
+    tty: true
+    environment:
+      - ROS_DOMAIN_ID=42
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      - ./ros_ws:/ros_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    network_mode: host
+    command: bash
