@@ -1,4 +1,4 @@
-FROM osrf/ros:jazzy-desktop
+FROM --platform=linux/amd64 osrf/ros:jazzy-desktop
 
 SHELL ["/bin/bash", "-c"]
 
