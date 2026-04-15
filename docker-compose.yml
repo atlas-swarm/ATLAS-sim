@@ -1,6 +1,6 @@
 services:
   atlas-ros:
-        platform: linux/amd64
+       
     build:
       context: .
       dockerfile: docker/ros/Dockerfile
