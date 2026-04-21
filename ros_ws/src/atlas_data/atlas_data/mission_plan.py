@@ -64,3 +64,80 @@ class MissionPlan:
     def load_json(cls, path: str | Path) -> "MissionPlan":
         content = Path(path).read_text(encoding="utf-8")
         return cls.from_json(content)
+
+    def validate(self) -> bool:
+        """Validate mission plan: mission_id must not be empty and at least 1 waypoint must exist."""
+        return bool(self.mission_id) and len(self.waypoints) > 0
+
+    def to_kml(self) -> str:
+        """Convert patrol boundary and waypoints to KML format (Google Earth compatible)."""
+        kml_lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<kml xmlns="http://www.opengis.net/kml/2.2">',
+            '  <Document>',
+            f'    <name>Mission: {self.mission_id}</name>',
+            '    <description>ATLAS Mission Plan</description>',
+        ]
+
+        # Add patrol boundary as a polygon
+        if self.patrol_boundary:
+            kml_lines.extend([
+                '    <Placemark>',
+                '      <name>Patrol Boundary</name>',
+                '      <Style>',
+                '        <LineStyle>',
+                '          <color>ff0000ff</color>',
+                '          <width>2</width>',
+                '        </LineStyle>',
+                '        <PolyStyle>',
+                '          <color>4d0000ff</color>',
+                '        </PolyStyle>',
+                '      </Style>',
+                '      <Polygon>',
+                '        <outerBoundaryIs>',
+                '          <LinearRing>',
+                '            <coordinates>',
+            ])
+            
+            for coord in self.patrol_boundary:
+                kml_lines.append(f'              {coord.longitude},{coord.latitude},{coord.altitude}')
+            
+            # Close the polygon by repeating the first coordinate
+            if self.patrol_boundary:
+                first = self.patrol_boundary[0]
+                kml_lines.append(f'              {first.longitude},{first.latitude},{first.altitude}')
+            
+            kml_lines.extend([
+                '            </coordinates>',
+                '          </LinearRing>',
+                '        </outerBoundaryIs>',
+                '      </Polygon>',
+                '    </Placemark>',
+            ])
+
+        # Add waypoints as placemarks
+        for idx, waypoint in enumerate(self.waypoints):
+            wp_name = waypoint.waypoint_id if waypoint.waypoint_id else f"Waypoint {idx + 1}"
+            coord = waypoint.coordinate
+            kml_lines.extend([
+                '    <Placemark>',
+                f'      <name>{wp_name}</name>',
+                f'      <description>Hold: {waypoint.hold_time_sec}s, Speed: {waypoint.speed_mps}m/s</description>',
+                '      <Style>',
+                '        <IconStyle>',
+                '          <color>ff00ff00</color>',
+                '          <scale>1.2</scale>',
+                '        </IconStyle>',
+                '      </Style>',
+                '      <Point>',
+                f'        <coordinates>{coord.longitude},{coord.latitude},{coord.altitude}</coordinates>',
+                '      </Point>',
+                '    </Placemark>',
+            ])
+
+        kml_lines.extend([
+            '  </Document>',
+            '</kml>',
+        ])
+
+        return '\n'.join(kml_lines)

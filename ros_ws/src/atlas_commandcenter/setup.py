@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = "atlas_common"
+package_name = "atlas_commandcenter"
 
 setup(
     name=package_name,
@@ -14,7 +14,7 @@ setup(
     zip_safe=True,
     maintainer="Can Gundogdu",
     maintainer_email="cangundogdu310@gmail.com",
-    description="Shared data models and common types for the ATLAS project.",
+    description="Command center interface, mission controller, and alert display for the ATLAS project.",
     license="MIT",
     extras_require={
         "test": [
