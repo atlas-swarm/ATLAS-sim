@@ -1,9 +1,9 @@
 services:
   atlas-ros:
+       
     build:
       context: .
       dockerfile: docker/ros/Dockerfile
-      platform: linux/amd64
     container_name: atlas-ros
     stdin_open: true
     tty: true
