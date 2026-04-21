@@ -123,7 +123,7 @@ class MissionController:
         
         # Log incident to DataLogger
         try:
-            from atlas_data.data_logger import DataLogger
+            from atlas_data import DataLogger
             logger = DataLogger.get_instance()
             logger.log_incident(
                 incident_type=IncidentType.MISSION_ABORT,

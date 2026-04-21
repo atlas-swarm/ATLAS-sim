@@ -129,7 +129,7 @@ class CommandCenterInterface:
         
         # Log the override as an incident
         try:
-            from atlas_data.data_logger import DataLogger
+            from atlas_data import DataLogger
             from atlas_common import IncidentType
             
             logger = DataLogger.get_instance()
