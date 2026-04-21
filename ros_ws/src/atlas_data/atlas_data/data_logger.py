@@ -65,10 +65,11 @@ class DataLogger:
     ) -> DataLogger:
         """Get the singleton instance of DataLogger. Creates it if it doesn't exist."""
         if cls._instance is None:
-            if flight_log_path is None or event_log_path is None:
-                raise ValueError(
-                    "flight_log_path and event_log_path must be provided when creating the first instance"
-                )
+            if flight_log_path is None:
+                flight_log_path = Path("logs/flight_log.csv")
+            if event_log_path is None:
+                event_log_path = Path("logs/event_log.jsonl")
+            
             cls._instance = cls(
                 flight_log_path=Path(flight_log_path),
                 event_log_path=Path(event_log_path),
@@ -95,7 +96,32 @@ class DataLogger:
                 # Fallback to vars() for non-dataclass objects
                 data = vars(packet)
         
-        row = {field: data.get(field) for field in self.TELEMETRY_FIELDS}
+        # Extract fields, handling nested position and velocity
+        row = {}
+        for field in self.TELEMETRY_FIELDS:
+            if field in data:
+                row[field] = data[field]
+            elif field == "latitude" and "position" in data:
+                pos = data["position"]
+                row[field] = pos.latitude if hasattr(pos, "latitude") else pos.get("latitude")
+            elif field == "longitude" and "position" in data:
+                pos = data["position"]
+                row[field] = pos.longitude if hasattr(pos, "longitude") else pos.get("longitude")
+            elif field == "altitude" and "position" in data:
+                pos = data["position"]
+                row[field] = pos.altitude if hasattr(pos, "altitude") else pos.get("altitude")
+            elif field == "velocity_x" and "velocity" in data:
+                vel = data["velocity"]
+                row[field] = vel.x if hasattr(vel, "x") else vel.get("x")
+            elif field == "velocity_y" and "velocity" in data:
+                vel = data["velocity"]
+                row[field] = vel.y if hasattr(vel, "y") else vel.get("y")
+            elif field == "velocity_z" and "velocity" in data:
+                vel = data["velocity"]
+                row[field] = vel.z if hasattr(vel, "z") else vel.get("z")
+            else:
+                row[field] = None
+        
         self.telemetry_buffer.append(row)
 
     def log_threat_event(self, alert: ThreatAlert | dict[str, Any]) -> None:
@@ -112,9 +138,25 @@ class DataLogger:
                 # Fallback to vars() for non-dataclass objects
                 data = vars(alert)
         
+        # Normalize threat_coordinates if it's a GeoCoordinate object
+        threat_coords = data.get("threat_coordinates")
+        if threat_coords and not isinstance(threat_coords, dict):
+            if hasattr(threat_coords, "latitude"):
+                data["threat_coordinates"] = {
+                    "latitude": threat_coords.latitude,
+                    "longitude": threat_coords.longitude,
+                    "altitude": threat_coords.altitude,
+                }
+        
         record = {
             "event_type": "threat_event",
-            **data,
+            "alert_id": data.get("alert_id"),
+            "detected_by_uav_id": data.get("detected_by_uav_id"),
+            "timestamp": data.get("timestamp"),
+            "threat_coordinates": data.get("threat_coordinates"),
+            "classification": data.get("classification"),
+            "confidence_score": data.get("confidence_score"),
+            "is_acknowledged": data.get("is_acknowledged", False),
         }
         self.event_buffer.append(record)
 

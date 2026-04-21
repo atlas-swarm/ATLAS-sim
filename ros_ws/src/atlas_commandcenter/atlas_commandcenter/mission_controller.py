@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from atlas_common import GeoCoordinate, IncidentType, MissionStatus
+from atlas_common import MessageType, GeoCoordinate, IncidentType, MissionStatus
 from atlas_data import MissionPlan
 
 if TYPE_CHECKING:
@@ -41,13 +41,13 @@ class MissionController:
     def start_mission(self, plan: MissionPlan) -> None:
         """
         Start mission execution.
-        Validates plan, sets status to RUNNING, and sends NAVIGATE command to UAVs.
+        Validates plan, sets status to ACTIVE, and sends NAVIGATE command to UAVs.
         """
         if not self.validate_plan(plan):
             print("ERROR: Cannot start mission - validation failed")
             return
         
-        self.status = MissionStatus.RUNNING
+        self.status = MissionStatus.ACTIVE
         self.active_plan = plan
         self.waypoint_index = 0
         self.patrol_boundary = plan.patrol_boundary
@@ -57,7 +57,7 @@ class MissionController:
             from atlas_communication.communication_bus import CommunicationBus
             bus = CommunicationBus.get_instance()
             # Publish NAVIGATE command with first waypoint
-            bus.publish("SWARM_COMMAND", {
+            bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "NAVIGATE",
                 "waypoint_index": 0,
                 "waypoint": plan.waypoints[0] if plan.waypoints else None,
@@ -77,7 +77,7 @@ class MissionController:
         try:
             from atlas_communication.communication_bus import CommunicationBus
             bus = CommunicationBus.get_instance()
-            bus.publish("SWARM_COMMAND", {
+            bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "HOVER",
             })
         except ImportError:
@@ -87,15 +87,15 @@ class MissionController:
     def resume_mission(self) -> None:
         """
         Resume paused mission.
-        Sets status to RUNNING and sends continue command to UAVs.
+        Sets status to ACTIVE and sends continue command to UAVs.
         """
-        self.status = MissionStatus.RUNNING
+        self.status = MissionStatus.ACTIVE
         
         # Send continue command to UAVs
         try:
             from atlas_communication.communication_bus import CommunicationBus
             bus = CommunicationBus.get_instance()
-            bus.publish("SWARM_COMMAND", {
+            bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "CONTINUE",
                 "waypoint_index": self.waypoint_index,
             })
@@ -114,7 +114,7 @@ class MissionController:
         try:
             from atlas_communication.communication_bus import CommunicationBus
             bus = CommunicationBus.get_instance()
-            bus.publish("SWARM_COMMAND", {
+            bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "RTL",
             })
         except ImportError:
