@@ -1,6 +1,7 @@
 import json
 from dataclasses import dataclass
 from enum import Enum
+//UAVların güncel durumunu bulunduran veri paketi
 
 class FlightMode(Enum):
     PATROL = "PATROL"

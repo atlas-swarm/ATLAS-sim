@@ -2,7 +2,9 @@ from enum import Enum
 from collections import deque
 from typing import Dict, List
 
-class MessageType(Enum):
+from src.atlas.atlas_communication.network_simulator import NetworkSimulator
+// Bütün subsystemler birbirine bağlı olmadıkları için iletişimleri bu bus üstünden yapıyorlar.
+//Sonra ilgili dinleyiciye mesejı iletiyor.
     TELEMETRY = "TELEMETRY"
     THREAT_ALERT = "THREAT_ALERT"
     SWARM_COMMAND = "SWARM_COMMAND"
@@ -19,6 +21,7 @@ class CommunicationBus:
     def __init__(self):
         self.subscribers: Dict[MessageType, List] = {t: [] for t in MessageType}
         self.message_queue: deque = deque()
+        self.network_simulator: NetworkSimulator = NetworkSimulator()
 
     @classmethod
     def get_instance(cls):
@@ -40,5 +43,9 @@ class CommunicationBus:
     def dispatch(self):
         while self.message_queue:
             message = self.message_queue.popleft()
+            if self.network_simulator.should_drop_packet():
+                # Graceful degradation: paket sessizce düşürülür, exception yok
+                continue
+            self.network_simulator.apply_latency()
             for listener in self.subscribers[message.msg_type]:
                 listener(message)
