@@ -3,8 +3,10 @@ from collections import deque
 from typing import Dict, List
 
 from src.atlas.atlas_communication.network_simulator import NetworkSimulator
-// Bütün subsystemler birbirine bağlı olmadıkları için iletişimleri bu bus üstünden yapıyorlar.
-//Sonra ilgili dinleyiciye mesejı iletiyor.
+# Bütün subsystemler birbirine bağlı olmadıkları için iletişimleri bu bus üstünden yapıyorlar.
+# Sonra ilgili dinleyiciye mesajı iletiyor.
+
+class MessageType(Enum):
     TELEMETRY = "TELEMETRY"
     THREAT_ALERT = "THREAT_ALERT"
     SWARM_COMMAND = "SWARM_COMMAND"

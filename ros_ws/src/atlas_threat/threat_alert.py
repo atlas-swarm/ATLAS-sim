@@ -19,11 +19,12 @@ class SeverityLevel(Enum):
 
 @dataclass
 class ThreatAlert:
-    threat_coordinates: GeoCoordinate
+    threat_coordinates: GeoCoordinate   # tehdidin konumu
     classification: ThreatClassification
     confidence_score: float
     uav_id: int
     timestamp: int
+    detection_position: GeoCoordinate = None  # algılama anında UAV'ın konumu
     alert_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     is_acknowledged: bool = False
 

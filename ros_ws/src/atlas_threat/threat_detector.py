@@ -39,7 +39,8 @@ class ThreatDetector:
             classification=classification,
             confidence_score=confidence,
             uav_id=self.uav_id,
-            timestamp=int(time.time())
+            timestamp=int(time.time()),
+            detection_position=position
         )
         self.bus.publish(Message(MessageType.THREAT_ALERT, alert))
         return alert
@@ -50,6 +51,7 @@ class ThreatDetector:
             classification, confidence = self.classify(obj)
             if confidence >= self.detection_threshold:
                 self.generate_alert(obj, position)
+        self.bus.dispatch()
 
     def set_detection_radius(self, radius: float):
         self.detection_radius = radius
