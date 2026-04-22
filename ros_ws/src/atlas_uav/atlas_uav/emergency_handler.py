@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from atlas.model.enums import FlightMode
+from atlas_common.enums import FlightMode
 
 
 @dataclass

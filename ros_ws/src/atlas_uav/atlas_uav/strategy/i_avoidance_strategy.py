@@ -2,8 +2,8 @@
 
 from abc import ABC, abstractmethod
 
-from atlas.model.geo_coordinate import GeoCoordinate
-from atlas.model.vector3d import Vector3D
+from atlas_common.geo_coordinate import GeoCoordinate
+from atlas_common.vector3d import Vector3D
 
 
 class IAvoidanceStrategy(ABC):

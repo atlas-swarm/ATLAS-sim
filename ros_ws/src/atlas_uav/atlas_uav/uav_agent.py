@@ -2,12 +2,12 @@
 
 from dataclasses import dataclass, field
 
-from atlas.model.enums import FlightMode, MissionStatus
-from atlas.model.geo_coordinate import GeoCoordinate
-from atlas.model.vector3d import Vector3D
-from atlas.uav.collision_avoider import CollisionAvoider
-from atlas.uav.emergency_handler import EmergencyHandler
-from atlas.uav.navigation_controller import NavigationController
+from atlas_common.enums import FlightMode, MissionStatus
+from atlas_common.geo_coordinate import GeoCoordinate
+from atlas_common.vector3d import Vector3D
+from atlas_uav.collision_avoider import CollisionAvoider
+from atlas_uav.emergency_handler import EmergencyHandler
+from atlas_uav.navigation_controller import NavigationController
 
 
 @dataclass

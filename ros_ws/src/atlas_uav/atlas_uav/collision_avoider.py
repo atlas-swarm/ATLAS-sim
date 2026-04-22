@@ -2,9 +2,9 @@
 
 from dataclasses import dataclass
 
-from atlas.model.geo_coordinate import GeoCoordinate
-from atlas.model.vector3d import Vector3D
-from atlas.uav.strategy.i_avoidance_strategy import IAvoidanceStrategy
+from atlas_common.geo_coordinate import GeoCoordinate
+from atlas_common.vector3d import Vector3D
+from atlas_uav.strategy.i_avoidance_strategy import IAvoidanceStrategy
 
 
 @dataclass

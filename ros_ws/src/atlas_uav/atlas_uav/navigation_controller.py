@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass, field
 
-from atlas.model.geo_coordinate import GeoCoordinate
-from atlas.model.waypoint import Waypoint
+from atlas_common.geo_coordinate import GeoCoordinate
+from atlas_common.waypoint import Waypoint
 
 
 @dataclass
