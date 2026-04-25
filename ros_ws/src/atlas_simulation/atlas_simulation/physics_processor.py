@@ -39,6 +39,15 @@ class PhysicsProcessor:
 
         return generated_events
 
+    def updatePositions(
+        self,
+        uav_states: dict[int, UAVState],
+        delta_time_s: float,
+        environment: EnvironmentModel,
+    ) -> list[SimEvent]:
+        """Compatibility wrapper for the Week 3 camelCase integration contract."""
+        return self.update_positions(uav_states, delta_time_s, environment)
+
     def apply_boundary_constraints(
         self,
         state: UAVState,

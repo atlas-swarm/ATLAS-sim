@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import inspect
 import threading
 import time
 
@@ -16,7 +17,11 @@ from atlas_simulation.models import (
     WorldState,
 )
 from atlas_simulation.physics_processor import PhysicsProcessor
-from atlas_simulation.publisher_adapter import publish_world_state
+from atlas_simulation.publisher_adapter import (
+    dispatch_messages,
+    publish_telemetry,
+    publish_world_state,
+)
 
 
 def _enum_or_value(value: object, default: str) -> str:
@@ -51,6 +56,8 @@ class SimulationEngine:
         self.pending_events: list[SimEvent] = []
         self.active_alerts: list[object] = []
         self._last_world_state: WorldState | None = None
+        self._data_logger: object | None = None
+        self._data_logger_available = True
 
         self._initialized = False
         self._lock = threading.RLock()
@@ -87,7 +94,8 @@ class SimulationEngine:
         with self._lock:
             if self._loop_state.thread and self._loop_state.thread.is_alive():
                 raise RuntimeError(
-                    "SimulationEngine loop is still stopping; initialize cannot continue"
+                    "SimulationEngine loop is still stopping; "
+                    "initialize cannot continue"
                 )
             self.current_tick = 0
             self.tick_interval_ms = max(1, config.tick_interval_ms)
@@ -103,6 +111,8 @@ class SimulationEngine:
             self.pending_events = []
             self.active_alerts = []
             self._last_world_state = None
+            self._data_logger = None
+            self._data_logger_available = True
             self._loop_state.stop_event = threading.Event()
             self._initialized = True
 
@@ -170,6 +180,8 @@ class SimulationEngine:
             if thread is None or not thread.is_alive():
                 self._loop_state.thread = None
 
+        self._flush_data_logger()
+
     def run_cycle(self) -> WorldState:
         """Execute one complete simulation tick and publish the snapshot."""
         if not self._initialized:
@@ -181,16 +193,23 @@ class SimulationEngine:
             self.pending_events.clear()
             self.current_tick += 1
             timestamp_ms = int(time.time() * 1000)
+            delta_time_s = self.tick_interval_ms / 1000.0
 
+            self._update_registered_agents(delta_time_s)
             uav_states = self._collect_uav_states()
             new_events = self.physics_processor.update_positions(
                 uav_states=uav_states,
-                delta_time_s=self.tick_interval_ms / 1000.0,
+                delta_time_s=delta_time_s,
                 environment=self.environment,
             )
             self._stamp_events(new_events, timestamp_ms)
             self.pending_events.extend(new_events)
             self._sync_uav_states(uav_states)
+            telemetry_packets = [
+                self._build_telemetry_packet(state, timestamp_ms)
+                for state in uav_states.values()
+            ]
+            should_flush_logger = self.current_tick % 10 == 0
 
             world_state = WorldState(
                 tick=self.current_tick,
@@ -204,8 +223,16 @@ class SimulationEngine:
             published_world_state = world_state.copy()
             returned_world_state = world_state.copy()
 
+        for packet in telemetry_packets:
+            publish_telemetry(packet)
+        self._log_telemetry_packets(telemetry_packets, should_flush_logger)
         publish_world_state(published_world_state)
+        dispatch_messages()
         return returned_world_state
+
+    def tick(self) -> WorldState:
+        """Execute one simulation tick; compatibility alias for run_cycle()."""
+        return self.run_cycle()
 
     def _run_loop(self) -> None:
         """Run the background tick loop until stop is requested."""
@@ -237,6 +264,136 @@ class SimulationEngine:
             sleep_s = max(0.0, self.tick_interval_ms / 1000.0 - elapsed)
             if sleep_s > 0:
                 self._loop_state.stop_event.wait(timeout=sleep_s)
+
+    def _update_registered_agents(self, delta_time_s: float) -> None:
+        """Invoke UAVAgent update/tick hooks before physics advances state."""
+        obstacle_positions: list[GeoCoordinate] | None = None
+
+        for agent in self.uav_registry.values():
+            update_method = getattr(agent, "update", None)
+            if callable(update_method):
+                self._call_update_method(update_method, delta_time_s)
+                continue
+
+            tick_method = getattr(agent, "tick", None)
+            if callable(tick_method):
+                if obstacle_positions is None:
+                    obstacle_positions = self._collect_obstacle_positions()
+                self._call_tick_method(tick_method, delta_time_s, obstacle_positions)
+
+    def _collect_obstacle_positions(self) -> list[GeoCoordinate]:
+        """Return sim object positions in the shape expected by UAVAgent.tick()."""
+        return [
+            sim_object.position.copy()
+            for sim_object in self.environment.sim_objects.values()
+        ]
+
+    def _build_telemetry_packet(
+        self,
+        state: UAVState,
+        timestamp_ms: int,
+    ) -> object:
+        """Create the branch-provided TelemetryPacket when available."""
+        fallback_packet = self._build_telemetry_dict(state, timestamp_ms)
+
+        try:
+            from atlas_communication import telemetry_packet as telemetry_module
+        except ImportError:
+            return fallback_packet
+
+        telemetry_packet_type = getattr(telemetry_module, "TelemetryPacket", None)
+        if telemetry_packet_type is None:
+            return fallback_packet
+
+        try:
+            return telemetry_packet_type(
+                uav_id=state.uav_id,
+                position=self._build_external_coordinate(
+                    getattr(telemetry_module, "GeoCoordinate", None),
+                    state.position,
+                ),
+                velocity=self._build_external_vector(
+                    getattr(telemetry_module, "Vector3D", None),
+                    state.velocity,
+                ),
+                battery_level=state.battery_level,
+                flight_mode=self._build_external_flight_mode(
+                    getattr(telemetry_module, "FlightMode", None),
+                    state.flight_mode,
+                ),
+                timestamp=timestamp_ms,
+            )
+        except (TypeError, ValueError, AttributeError):
+            return fallback_packet
+
+    @staticmethod
+    def _build_telemetry_dict(state: UAVState, timestamp_ms: int) -> dict[str, object]:
+        """Fallback telemetry payload used before atlas_communication is installed."""
+        return {
+            "timestamp": timestamp_ms,
+            "uav_id": state.uav_id,
+            "position": state.position.copy(),
+            "velocity": state.velocity.copy(),
+            "heading": state.heading,
+            "battery_level": state.battery_level,
+            "flight_mode": state.flight_mode,
+            "system_status": state.system_status,
+        }
+
+    def _log_telemetry_packets(
+        self,
+        telemetry_packets: list[object],
+        should_flush: bool,
+    ) -> None:
+        """Send telemetry payloads to DataLogger when that package is present."""
+        if not telemetry_packets:
+            return
+
+        logger = self._get_data_logger()
+        if logger is None:
+            return
+
+        log_method = getattr(logger, "log_flight_data", None)
+        if not callable(log_method):
+            log_method = getattr(logger, "logFlightData", None)
+        if not callable(log_method):
+            return
+
+        for packet in telemetry_packets:
+            log_method(packet)
+
+        if should_flush:
+            self._flush_data_logger(logger)
+
+    def _get_data_logger(self) -> object | None:
+        """Resolve DataLogger lazily so simulation stays usable without atlas_data."""
+        if self._data_logger is not None:
+            return self._data_logger
+        if not self._data_logger_available:
+            return None
+
+        data_logger_type = self._import_data_logger_type()
+        if data_logger_type is None:
+            self._data_logger_available = False
+            return None
+
+        get_instance = getattr(data_logger_type, "get_instance", None)
+        if not callable(get_instance):
+            self._data_logger_available = False
+            return None
+
+        self._data_logger = get_instance()
+        return self._data_logger
+
+    def _flush_data_logger(self, logger: object | None = None) -> None:
+        """Flush DataLogger buffers when logging has been activated."""
+        target_logger = logger if logger is not None else self._data_logger
+        if target_logger is None:
+            return
+
+        flush = getattr(target_logger, "flush", None)
+        if callable(flush):
+            flush()
 
     def _collect_uav_states(self) -> dict[int, UAVState]:
         """Normalize registered agents into internal UAVState objects."""
@@ -289,6 +446,111 @@ class SimulationEngine:
         for event in events:
             event.tick = self.current_tick
             event.timestamp_ms = timestamp_ms
+
+    @staticmethod
+    def _call_update_method(method: object, delta_time_s: float) -> None:
+        """Call update(delta_time) while tolerating no-arg update hooks."""
+        if SimulationEngine._parameter_names(method):
+            method(delta_time_s)
+        else:
+            method()
+
+    @staticmethod
+    def _call_tick_method(
+        method: object,
+        delta_time_s: float,
+        obstacle_positions: list[GeoCoordinate],
+    ) -> None:
+        """Call tick() variants used by the UAV branch."""
+        parameter_names = SimulationEngine._parameter_names(method)
+        if not parameter_names:
+            method()
+            return
+
+        first_name = parameter_names[0]
+        if first_name in {"delta_time", "delta_time_s", "deltaTime", "dt"}:
+            method(delta_time_s)
+        else:
+            method(obstacle_positions)
+
+    @staticmethod
+    def _parameter_names(method: object) -> list[str]:
+        """Return callable parameter names, excluding varargs-only details."""
+        try:
+            signature = inspect.signature(method)
+        except (TypeError, ValueError):
+            return []
+
+        return [
+            name
+            for name, parameter in signature.parameters.items()
+            if parameter.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
+
+    @staticmethod
+    def _build_external_coordinate(
+        coordinate_type: object | None,
+        position: GeoCoordinate,
+    ) -> object:
+        """Instantiate either common.GeoCoordinate or older lat/lon DTOs."""
+        if coordinate_type is None:
+            return position.copy()
+
+        try:
+            return coordinate_type(
+                latitude=position.latitude,
+                longitude=position.longitude,
+                altitude=position.altitude,
+            )
+        except TypeError:
+            return coordinate_type(
+                lat=position.latitude,
+                lon=position.longitude,
+                alt=position.altitude,
+            )
+
+    @staticmethod
+    def _build_external_vector(
+        vector_type: object | None,
+        velocity: Vector3D,
+    ) -> object:
+        """Instantiate branch Vector3D DTOs without coupling to their package."""
+        if vector_type is None:
+            return velocity.copy()
+        return vector_type(x=velocity.x, y=velocity.y, z=velocity.z)
+
+    @staticmethod
+    def _build_external_flight_mode(
+        flight_mode_type: object | None,
+        flight_mode: object,
+    ) -> object:
+        """Coerce local flight-mode values into the communication enum if present."""
+        mode_value = _enum_or_value(flight_mode, "PATROL")
+        if flight_mode_type is None:
+            return mode_value
+
+        try:
+            return flight_mode_type(mode_value)
+        except (TypeError, ValueError):
+            return mode_value
+
+    @staticmethod
+    def _import_data_logger_type() -> object | None:
+        """Import DataLogger from either package export style."""
+        for module_name in ("atlas_data", "atlas_data.data_logger"):
+            try:
+                module = __import__(module_name, fromlist=["DataLogger"])
+            except ImportError:
+                continue
+
+            data_logger_type = getattr(module, "DataLogger", None)
+            if data_logger_type is not None:
+                return data_logger_type
+        return None
 
     @staticmethod
     def _normalize_uav_id(agent: object) -> int:

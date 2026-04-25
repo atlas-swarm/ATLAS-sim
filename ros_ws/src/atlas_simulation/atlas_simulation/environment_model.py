@@ -33,6 +33,14 @@ class EnvironmentModel:
         """Insert or replace an object by its stable object_id."""
         self.sim_objects[sim_object.object_id] = sim_object.copy()
 
+    def add_threat_object(self, sim_object: SimObject) -> None:
+        """Add a threat object to the simulated object registry."""
+        self.add_sim_object(sim_object)
+
+    def addThreatObject(self, sim_object: SimObject) -> None:
+        """Compatibility wrapper for the Week 3 camelCase integration contract."""
+        self.add_threat_object(sim_object)
+
     def remove_sim_object(self, object_id: str) -> None:
         """Remove an object when it exists."""
         self.sim_objects.pop(object_id, None)
