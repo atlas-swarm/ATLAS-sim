@@ -5,6 +5,9 @@ from atlas_communication.communication_bus import CommunicationBus
 from atlas_threat.sensor_simulator import SensorSimulator
 from atlas_threat.threat_alert import ThreatAlert
 
+# 🔥 Engine ile aynı event adı
+THREAT_DETECTED_EVENT = "THREAT_DETECTED_EVENT"
+
 
 class ThreatDetector:
     def __init__(self, uav_id: int):
@@ -21,12 +24,15 @@ class ThreatDetector:
                 (obj["lat"] - position.latitude) ** 2
                 + (obj["lon"] - position.longitude) ** 2
             ) ** 0.5 * 111000
+
             if dist <= self.detection_radius:
                 detected.append(obj)
+
         return detected
 
     def classify(self, obj: dict) -> tuple:
         obj_type = obj.get("type", "UNKNOWN")
+
         if obj_type == "VEHICLE":
             return ThreatClassification.VEHICLE, 0.90
         elif obj_type == "PERSON":
@@ -36,8 +42,9 @@ class ThreatDetector:
         else:
             return ThreatClassification.UNKNOWN, 0.50
 
-    def generate_alert(self, obj: dict, position: GeoCoordinate) -> ThreatAlert:
+    def generate_alert(self, obj: dict, position: GeoCoordinate):
         classification, confidence = self.classify(obj)
+
         alert = ThreatAlert(
             threat_coordinates=GeoCoordinate(
                 latitude=obj["lat"],
@@ -50,16 +57,38 @@ class ThreatDetector:
             timestamp=int(time.time()),
             detection_position=position,
         )
+
+        # 📡 Bus publish (mevcut davranış korunur)
         self.bus.publish(MessageType.THREAT_ALERT, alert)
-        return alert
+
+        # 🔥 Engine için event döndür
+        return {
+            "type": THREAT_DETECTED_EVENT,
+            "details": {
+                "classification": str(classification),
+                "confidence": confidence,
+                "object": obj,
+            },
+        }
 
     def update(self, position: GeoCoordinate, sim_objects: list):
         detected = self.scan(position, sim_objects)
+
+        events = []
+
         for obj in detected:
             classification, confidence = self.classify(obj)
+
             if confidence >= self.detection_threshold:
-                self.generate_alert(obj, position)
+                alert_event = self.generate_alert(obj, position)
+
+                # Engine bunu SimEvent'e çevirecek
+                events.append(alert_event)
+
+        # 📡 mesajları gönder
         self.bus.dispatch()
+
+        return events  # 🔥 EN KRİTİK NOKTA
 
     def set_detection_radius(self, radius: float):
         self.detection_radius = radius
