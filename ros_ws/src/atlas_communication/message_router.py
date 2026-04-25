@@ -1,5 +1,9 @@
-from atlas_communication.communication_bus import CommunicationBus, Message, MessageType
+from atlas_common import MessageType
+from atlas_communication.communication_bus import CommunicationBus, Message
+
 # yönlendirici
+
+
 class MessageRouter:
     def __init__(self):
         self.bus = CommunicationBus.get_instance()
