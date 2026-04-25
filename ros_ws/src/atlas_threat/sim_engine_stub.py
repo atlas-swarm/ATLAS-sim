@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import Dict
 
-from src.atlas.atlas_communication.telemetry_packet import GeoCoordinate
-from src.atlas.atlas_threat.sensor_simulator import CameraFrame, SensorSimulator, ThermalFrame, WeatherState
+from atlas_common import GeoCoordinate, WeatherState
+from atlas_threat.sensor_simulator import CameraFrame, SensorSimulator, ThermalFrame
 
 
 @dataclass
@@ -83,14 +83,14 @@ class SimEngineStub:
         for uav_id, state in self._uav_states.items():
             camera = self._sensor_simulator.get_camera_data(
                 uav_id=uav_id,
-                lat=state.position.lat,
-                lon=state.position.lon,
+                lat=state.position.latitude,
+                lon=state.position.longitude,
                 heading=state.heading,
             )
             thermal = self._sensor_simulator.get_thermal_data(
                 uav_id=uav_id,
-                lat=state.position.lat,
-                lon=state.position.lon,
+                lat=state.position.latitude,
+                lon=state.position.longitude,
             )
             frames[uav_id] = TickFrames(uav_id=uav_id, camera=camera, thermal=thermal)
 

@@ -1,20 +1,7 @@
 import uuid
 from dataclasses import dataclass, field
-from enum import Enum
-from atlas_communication.telemetry_packet import GeoCoordinate
 
-
-class ThreatClassification(Enum):
-    UNKNOWN = "UNKNOWN"
-    SUSPICIOUS_MOVEMENT = "SUSPICIOUS_MOVEMENT"
-    UNAUTHORIZED_CROSSING = "UNAUTHORIZED_CROSSING"
-    VEHICLE = "VEHICLE"
-
-
-class SeverityLevel(Enum):
-    LOW = "LOW"
-    MEDIUM = "MEDIUM"
-    HIGH = "HIGH"
+from atlas_common import GeoCoordinate, ThreatClassification, SeverityLevel
 
 
 @dataclass

@@ -1,12 +1,6 @@
 from dataclasses import dataclass
-from enum import Enum
 
-
-class WeatherState(Enum):
-    CLEAR = "CLEAR"
-    CLOUDY = "CLOUDY"
-    RAINY = "RAINY"
-    FOGGY = "FOGGY"
+from atlas_common import WeatherState
 
 
 @dataclass
@@ -40,7 +34,7 @@ class SensorSimulator:
             position_lat=lat,
             position_lon=lon,
             heading=heading,
-            quality=quality
+            quality=quality,
         )
 
     def get_thermal_data(self, uav_id: int, lat: float, lon: float) -> ThermalFrame:
@@ -51,15 +45,13 @@ class SensorSimulator:
             position_lat=lat,
             position_lon=lon,
             heat_signature=heat,
-            quality=quality
+            quality=quality,
         )
 
     def apply_weather_degradation(self, weather: WeatherState):
         if weather == WeatherState.CLEAR:
             self.noise_level = 0.0
-        elif weather == WeatherState.CLOUDY:
-            self.noise_level = 0.2
-        elif weather == WeatherState.RAINY:
-            self.noise_level = 0.5
         elif weather == WeatherState.FOGGY:
             self.noise_level = 0.8
+        elif weather == WeatherState.STORMY:
+            self.noise_level = 0.5

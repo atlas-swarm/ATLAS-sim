@@ -1,8 +1,9 @@
 import time
+
+from atlas_common import GeoCoordinate, MessageType, ThreatClassification
+from atlas_communication.communication_bus import CommunicationBus
 from atlas_threat.sensor_simulator import SensorSimulator
-from atlas_threat.threat_alert import ThreatAlert, ThreatClassification
-from atlas_communication.communication_bus import CommunicationBus, Message, MessageType
-from atlas_communication.telemetry_packet import GeoCoordinate
+from atlas_threat.threat_alert import ThreatAlert
 
 
 class ThreatDetector:
@@ -16,7 +17,10 @@ class ThreatDetector:
     def scan(self, position: GeoCoordinate, sim_objects: list) -> list:
         detected = []
         for obj in sim_objects:
-            dist = ((obj["lat"] - position.lat) ** 2 + (obj["lon"] - position.lon) ** 2) ** 0.5 * 111000
+            dist = (
+                (obj["lat"] - position.latitude) ** 2
+                + (obj["lon"] - position.longitude) ** 2
+            ) ** 0.5 * 111000
             if dist <= self.detection_radius:
                 detected.append(obj)
         return detected
@@ -35,14 +39,18 @@ class ThreatDetector:
     def generate_alert(self, obj: dict, position: GeoCoordinate) -> ThreatAlert:
         classification, confidence = self.classify(obj)
         alert = ThreatAlert(
-            threat_coordinates=GeoCoordinate(obj["lat"], obj["lon"], 0.0),
+            threat_coordinates=GeoCoordinate(
+                latitude=obj["lat"],
+                longitude=obj["lon"],
+                altitude=0.0,
+            ),
             classification=classification,
             confidence_score=confidence,
             uav_id=self.uav_id,
             timestamp=int(time.time()),
-            detection_position=position
+            detection_position=position,
         )
-        self.bus.publish(Message(MessageType.THREAT_ALERT, alert))
+        self.bus.publish(MessageType.THREAT_ALERT, alert)
         return alert
 
     def update(self, position: GeoCoordinate, sim_objects: list):
