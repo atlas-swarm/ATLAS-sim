@@ -1,8 +1,8 @@
 import time
-from src.atlas.atlas_threat.sensor_simulator import SensorSimulator
-from src.atlas.atlas_threat.threat_alert import ThreatAlert, ThreatClassification
-from src.atlas.atlas_communication.communication_bus import CommunicationBus, Message, MessageType
-from src.atlas.atlas_communication.telemetry_packet import GeoCoordinate
+from atlas_threat.sensor_simulator import SensorSimulator
+from atlas_threat.threat_alert import ThreatAlert, ThreatClassification
+from atlas_communication.communication_bus import CommunicationBus, Message, MessageType
+from atlas_communication.telemetry_packet import GeoCoordinate
 
 
 class ThreatDetector:

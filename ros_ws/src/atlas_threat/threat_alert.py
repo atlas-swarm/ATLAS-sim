@@ -1,7 +1,7 @@
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from src.atlas.atlas_communication.telemetry_packet import GeoCoordinate
+from atlas_communication.telemetry_packet import GeoCoordinate
 
 
 class ThreatClassification(Enum):
