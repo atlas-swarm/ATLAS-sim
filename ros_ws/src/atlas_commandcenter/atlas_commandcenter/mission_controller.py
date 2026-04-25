@@ -41,13 +41,13 @@ class MissionController:
     def start_mission(self, plan: MissionPlan) -> None:
         """
         Start mission execution.
-        Validates plan, sets status to ACTIVE, and sends NAVIGATE command to UAVs.
+        Validates plan, sets status to RUNNING, and sends NAVIGATE command to UAVs.
         """
         if not self.validate_plan(plan):
             print("ERROR: Cannot start mission - validation failed")
             return
         
-        self.status = MissionStatus.ACTIVE
+        self.status = MissionStatus.RUNNING
         self.active_plan = plan
         self.waypoint_index = 0
         self.patrol_boundary = plan.patrol_boundary
@@ -59,9 +59,11 @@ class MissionController:
             # Publish NAVIGATE command with first waypoint
             bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "NAVIGATE",
-                "waypoint_index": 0,
+                "target": "ALL",
                 "waypoint": plan.waypoints[0] if plan.waypoints else None,
+                "waypoint_index": 0,
             })
+            bus.dispatch()
         except ImportError:
             # CommunicationBus not available yet - graceful degradation
             print("WARNING: CommunicationBus not available, command not sent")
@@ -79,7 +81,9 @@ class MissionController:
             bus = CommunicationBus.get_instance()
             bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "HOVER",
+                "target": "ALL",
             })
+            bus.dispatch()
         except ImportError:
             # CommunicationBus not available yet - graceful degradation
             print("WARNING: CommunicationBus not available, command not sent")
@@ -87,9 +91,9 @@ class MissionController:
     def resume_mission(self) -> None:
         """
         Resume paused mission.
-        Sets status to ACTIVE and sends continue command to UAVs.
+        Sets status to RUNNING and sends continue command to UAVs.
         """
-        self.status = MissionStatus.ACTIVE
+        self.status = MissionStatus.RUNNING
         
         # Send continue command to UAVs
         try:
@@ -97,8 +101,10 @@ class MissionController:
             bus = CommunicationBus.get_instance()
             bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "CONTINUE",
+                "target": "ALL",
                 "waypoint_index": self.waypoint_index,
             })
+            bus.dispatch()
         except ImportError:
             # CommunicationBus not available yet - graceful degradation
             print("WARNING: CommunicationBus not available, command not sent")
@@ -116,7 +122,9 @@ class MissionController:
             bus = CommunicationBus.get_instance()
             bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "RTL",
+                "target": "ALL",
             })
+            bus.dispatch()
         except ImportError:
             # CommunicationBus not available yet - graceful degradation
             print("WARNING: CommunicationBus not available, command not sent")

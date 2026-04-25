@@ -1,26 +1,10 @@
 import json
 from dataclasses import dataclass
-from enum import Enum
-# UAVların güncel durumunu bulunduran veri paketi
 
-class FlightMode(Enum):
-    PATROL = "PATROL"
-    RTL = "RTL"
-    HOVER = "HOVER"
-    LAND = "LAND"
-    FORMATION = "FORMATION"
+from atlas_common import GeoCoordinate, Vector3D, FlightMode
 
-@dataclass
-class GeoCoordinate:
-    lat: float
-    lon: float
-    alt: float
+# UAV'ların güncel durumunu bulunduran veri paketi
 
-@dataclass
-class Vector3D:
-    x: float
-    y: float
-    z: float
 
 @dataclass
 class TelemetryPacket:
@@ -34,21 +18,35 @@ class TelemetryPacket:
     def to_json(self) -> str:
         return json.dumps({
             "uav_id": self.uav_id,
-            "position": {"lat": self.position.lat, "lon": self.position.lon, "alt": self.position.alt},
-            "velocity": {"x": self.velocity.x, "y": self.velocity.y, "z": self.velocity.z},
+            "position": {
+                "latitude": self.position.latitude,
+                "longitude": self.position.longitude,
+                "altitude": self.position.altitude,
+            },
+            "velocity": {
+                "x": self.velocity.x,
+                "y": self.velocity.y,
+                "z": self.velocity.z,
+            },
             "battery_level": self.battery_level,
             "flight_mode": self.flight_mode.value,
-            "timestamp": self.timestamp
+            "timestamp": self.timestamp,
         })
 
     @staticmethod
     def from_json(data: str) -> "TelemetryPacket":
         d = json.loads(data)
+        pos = d["position"]
+        vel = d["velocity"]
         return TelemetryPacket(
             uav_id=d["uav_id"],
-            position=GeoCoordinate(**d["position"]),
-            velocity=Vector3D(**d["velocity"]),
+            position=GeoCoordinate(
+                latitude=pos["latitude"],
+                longitude=pos["longitude"],
+                altitude=pos["altitude"],
+            ),
+            velocity=Vector3D(x=vel["x"], y=vel["y"], z=vel["z"]),
             battery_level=d["battery_level"],
             flight_mode=FlightMode(d["flight_mode"]),
-            timestamp=d["timestamp"]
+            timestamp=d["timestamp"],
         )

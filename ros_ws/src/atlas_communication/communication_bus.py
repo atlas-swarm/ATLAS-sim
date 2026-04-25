@@ -1,21 +1,18 @@
-from enum import Enum
 from collections import deque
 from typing import Dict, List
 
-from src.atlas.atlas_communication.network_simulator import NetworkSimulator
+from atlas_common import MessageType
+from atlas_communication.network_simulator import NetworkSimulator
+
 # Bütün subsystemler birbirine bağlı olmadıkları için iletişimleri bu bus üstünden yapıyorlar.
 # Sonra ilgili dinleyiciye mesajı iletiyor.
 
-class MessageType(Enum):
-    TELEMETRY = "TELEMETRY"
-    THREAT_ALERT = "THREAT_ALERT"
-    SWARM_COMMAND = "SWARM_COMMAND"
-    EMERGENCY = "EMERGENCY"
 
 class Message:
     def __init__(self, msg_type: MessageType, payload):
         self.msg_type = msg_type
         self.payload = payload
+
 
 class CommunicationBus:
     _instance = None
@@ -39,8 +36,8 @@ class CommunicationBus:
         if listener in self.subscribers[msg_type]:
             self.subscribers[msg_type].remove(listener)
 
-    def publish(self, message: Message):
-        self.message_queue.append(message)
+    def publish(self, msg_type: MessageType, payload):
+        self.message_queue.append(Message(msg_type, payload))
 
     def dispatch(self):
         while self.message_queue:
@@ -50,4 +47,4 @@ class CommunicationBus:
                 continue
             self.network_simulator.apply_latency()
             for listener in self.subscribers[message.msg_type]:
-                listener(message)
+                listener(message.payload)
