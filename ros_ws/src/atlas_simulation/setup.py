@@ -1,3 +1,5 @@
+from glob import glob
+
 from setuptools import find_packages, setup
 
 
@@ -14,6 +16,7 @@ setup(
             [f"resource/{package_name}"],
         ),
         (f"share/{package_name}", ["package.xml"]),
+        (f"share/{package_name}/missions", glob("missions/*.json")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
@@ -22,5 +25,9 @@ setup(
     description="Core simulation engine package for the ATLAS project.",
     license="MIT",
     extras_require={"test": ["pytest"]},
-    entry_points={"console_scripts": []},
+    entry_points={
+        "console_scripts": [
+            "atlas_demo_scenario = atlas_simulation.demo_scenario:main",
+        ]
+    },
 )

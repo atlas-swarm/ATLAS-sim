@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 
 TELEMETRY_MESSAGE_TYPE = "TELEMETRY"
+EMERGENCY_MESSAGE_TYPE = "EMERGENCY"
 WORLD_STATE_MESSAGE_TYPE = "WORLD_STATE"
 
 
@@ -71,6 +72,11 @@ def publish_message(message_type: str, payload: object) -> None:
 def publish_telemetry(packet: object) -> None:
     """Publish a telemetry payload using the active messaging path."""
     publish_message(TELEMETRY_MESSAGE_TYPE, packet)
+
+
+def publish_emergency_event(event: object) -> None:
+    """Publish an emergency event using the active messaging path."""
+    publish_message(EMERGENCY_MESSAGE_TYPE, event)
 
 
 def publish_world_state(world_state: object) -> None:

@@ -19,9 +19,19 @@ from atlas_simulation.models import (
 from atlas_simulation.physics_processor import PhysicsProcessor
 from atlas_simulation.publisher_adapter import (
     dispatch_messages,
+    publish_emergency_event,
     publish_telemetry,
     publish_world_state,
 )
+
+
+MISSION_START_EVENT = "MISSION_START"
+MISSION_COMPLETE_EVENT = "MISSION_COMPLETE"
+MISSION_ABORT_EVENT = "MISSION_ABORT"
+EMERGENCY_EVENT = "EMERGENCY_EVENT"
+GEOFENCE_VIOLATION_EVENT = "GEOFENCE_VIOLATION"
+SUBSYSTEM_ERROR_EVENT = "SUBSYSTEM_ERROR"
+THREAT_DETECTED_EVENT = "THREAT_DETECTED"
 
 
 def _enum_or_value(value: object, default: str) -> str:
@@ -37,6 +47,22 @@ class _LoopState:
 
     stop_event: threading.Event
     thread: threading.Thread | None = None
+
+
+@dataclass(slots=True)
+class _MissionWaypoint:
+    """Waypoint adapter compatible with current and branch navigation code."""
+
+    coordinate: GeoCoordinate
+    sequence: int = 0
+    waypoint_id: str | None = None
+    hold_time_sec: float = 0.0
+    speed_mps: float = 0.0
+
+    @property
+    def position(self) -> GeoCoordinate:
+        """Return coordinate through the name used by NavigationController."""
+        return self.coordinate
 
 
 class SimulationEngine:
@@ -58,6 +84,10 @@ class SimulationEngine:
         self._last_world_state: WorldState | None = None
         self._data_logger: object | None = None
         self._data_logger_available = True
+        self._active_mission: object | None = None
+        self._mission_status = "IDLE"
+        self._mission_waypoints: list[_MissionWaypoint] = []
+        self._threat_detectors: dict[int, object] = {}
 
         self._initialized = False
         self._lock = threading.RLock()
@@ -113,6 +143,10 @@ class SimulationEngine:
             self._last_world_state = None
             self._data_logger = None
             self._data_logger_available = True
+            self._active_mission = None
+            self._mission_status = "IDLE"
+            self._mission_waypoints = []
+            self._threat_detectors = {}
             self._loop_state.stop_event = threading.Event()
             self._initialized = True
 
@@ -126,6 +160,134 @@ class SimulationEngine:
         uav_id = self._normalize_uav_id(agent)
         with self._lock:
             self.uav_registry[uav_id] = agent
+
+    def register_threat_detector(
+        self,
+        detector: object,
+        uav_id: int | str | None = None,
+    ) -> None:
+        """Register a ThreatDetector-like object to run after UAV updates."""
+        resolved_uav_id = (
+            self._normalize_uav_id(detector)
+            if uav_id is None and hasattr(detector, "uav_id")
+            else int(uav_id if uav_id is not None else len(self._threat_detectors))
+        )
+        with self._lock:
+            self._threat_detectors[resolved_uav_id] = detector
+
+    def registerThreatDetector(
+        self,
+        detector: object,
+        uav_id: int | str | None = None,
+    ) -> None:
+        """Compatibility wrapper for camelCase integration contracts."""
+        self.register_threat_detector(detector, uav_id)
+
+    def set_data_logger(self, logger: object | None) -> None:
+        """Inject a logger instance for demos or tests."""
+        with self._lock:
+            self._data_logger = logger
+            self._data_logger_available = logger is not None
+
+    def start_mission(self, mission_plan: object) -> None:
+        """Start a mission and load its waypoints into registered UAV agents."""
+        if not self._initialized:
+            raise RuntimeError("SimulationEngine must be initialized before missions")
+
+        waypoints = self._extract_waypoints(mission_plan)
+        if not waypoints:
+            raise ValueError("mission_plan must contain at least one waypoint")
+
+        boundary = self._extract_patrol_boundary(mission_plan)
+        mission_id = self._read_value(mission_plan, "mission_id", "mission")
+
+        with self._lock:
+            self._active_mission = mission_plan
+            self._mission_status = "ACTIVE"
+            self._mission_waypoints = waypoints
+            if boundary:
+                self.environment.patrol_boundary = [
+                    coordinate.copy() for coordinate in boundary
+                ]
+
+            for agent in self.uav_registry.values():
+                self._load_agent_route(agent, waypoints)
+
+        self._record_and_log_event(
+            SimEvent(
+                event_type=MISSION_START_EVENT,
+                details={
+                    "mission_id": mission_id,
+                    "waypoint_count": len(waypoints),
+                    "uav_count": len(self.uav_registry),
+                },
+            )
+        )
+
+    def startMission(self, mission_plan: object) -> None:
+        """Compatibility wrapper for camelCase MissionController integrations."""
+        self.start_mission(mission_plan)
+
+    def complete_mission(self, reason: str = "all waypoints completed") -> None:
+        """Complete the active mission, stop the engine, and flush logs."""
+        with self._lock:
+            if self._mission_status == "COMPLETED":
+                return
+            self._mission_status = "COMPLETED"
+
+        self._record_and_log_event(
+            SimEvent(
+                event_type=MISSION_COMPLETE_EVENT,
+                details={"reason": reason},
+            )
+        )
+        self.stop()
+
+    def abort_mission(self, reason: str = "mission aborted") -> None:
+        """Abort the active mission, command RTL, stop, and flush logs."""
+        with self._lock:
+            if self._mission_status == "ABORTED":
+                return
+            self._mission_status = "ABORTED"
+            agents = list(self.uav_registry.values())
+
+        for agent in agents:
+            self._set_agent_mode(agent, "RTL")
+
+        self._record_and_log_event(
+            SimEvent(
+                event_type=MISSION_ABORT_EVENT,
+                details={"reason": reason, "uav_count": len(agents)},
+            )
+        )
+        self.stop()
+
+    def abortMission(self, reason: str = "mission aborted") -> None:
+        """Compatibility wrapper for camelCase integrations."""
+        self.abort_mission(reason)
+
+    def trigger_rtl(self, agent: object, reason: str) -> SimEvent:
+        """Move a UAV into RTL mode and emit an emergency event."""
+        uav_id = self._normalize_uav_id(agent)
+        self._set_agent_mode(agent, "RTL")
+
+        emergency = getattr(agent, "emergency", None)
+        report_fault = getattr(emergency, "report_fault", None)
+        if callable(report_fault):
+            report_fault(reason)
+
+        event = SimEvent(
+            event_type=EMERGENCY_EVENT,
+            uav_id=uav_id,
+            details={"reason": reason, "action": "RTL"},
+        )
+        self._record_and_log_event(event)
+        self._safe_publish_emergency_event(event)
+        return event
+
+    def triggerRTL(self, agent: object, reason: str) -> SimEvent:
+        """Compatibility wrapper for EmergencyHandler.triggerRTL flows."""
+        return self.trigger_rtl(agent, reason)
 
     def start(self) -> None:
         """Start or resume the background simulation loop."""
@@ -197,19 +359,30 @@ class SimulationEngine:
 
             self._update_registered_agents(delta_time_s)
             uav_states = self._collect_uav_states()
-            new_events = self.physics_processor.update_positions(
-                uav_states=uav_states,
-                delta_time_s=delta_time_s,
-                environment=self.environment,
-            )
+            try:
+                new_events = self.physics_processor.update_positions(
+                    uav_states=uav_states,
+                    delta_time_s=delta_time_s,
+                    environment=self.environment,
+                )
+            except Exception as exc:
+                new_events = [
+                    self._build_error_event("PhysicsProcessor", exc)
+                ]
+            self._handle_physics_events(new_events)
             self._stamp_events(new_events, timestamp_ms)
             self.pending_events.extend(new_events)
             self._sync_uav_states(uav_states)
+            threat_events = self._update_threat_detectors(uav_states)
+            self._stamp_events(threat_events, timestamp_ms)
+            self.pending_events.extend(threat_events)
             telemetry_packets = [
                 self._build_telemetry_packet(state, timestamp_ms)
                 for state in uav_states.values()
             ]
             should_flush_logger = self.current_tick % 10 == 0
+            should_complete_mission = self._should_complete_mission()
+            events_to_log = [event.copy() for event in self.pending_events]
 
             world_state = WorldState(
                 tick=self.current_tick,
@@ -224,10 +397,15 @@ class SimulationEngine:
             returned_world_state = world_state.copy()
 
         for packet in telemetry_packets:
-            publish_telemetry(packet)
-        self._log_telemetry_packets(telemetry_packets, should_flush_logger)
-        publish_world_state(published_world_state)
-        dispatch_messages()
+            self._safe_publish_telemetry(packet)
+        self._log_telemetry_packets(telemetry_packets, should_flush=False)
+        self._log_events(events_to_log)
+        self._safe_publish_world_state(published_world_state)
+        self._safe_dispatch_messages()
+        if should_flush_logger:
+            self._flush_data_logger()
+        if should_complete_mission:
+            self.complete_mission()
         return returned_world_state
 
     def tick(self) -> WorldState:
@@ -248,38 +426,243 @@ class SimulationEngine:
             try:
                 self.run_cycle()
             except Exception as exc:  # pragma: no cover - defensive loop path
-                timestamp_ms = int(time.time() * 1000)
-                with self._lock:
-                    self.pending_events = [
-                        SimEvent(
-                            event_type="SIMULATION_ERROR",
-                            tick=self.current_tick,
-                            timestamp_ms=timestamp_ms,
-                            details={"error": str(exc)},
-                        )
-                    ]
-                    self.is_paused = True
+                self._record_and_log_event(
+                    self._build_error_event("SimulationEngine", exc)
+                )
 
             elapsed = time.monotonic() - start_time
             sleep_s = max(0.0, self.tick_interval_ms / 1000.0 - elapsed)
             if sleep_s > 0:
                 self._loop_state.stop_event.wait(timeout=sleep_s)
 
+    def _extract_waypoints(self, mission_plan: object) -> list[_MissionWaypoint]:
+        """Normalize mission-plan waypoints into a route shape agents can load."""
+        raw_waypoints = self._read_value(mission_plan, "waypoints", [])
+        waypoints: list[_MissionWaypoint] = []
+        for index, raw_waypoint in enumerate(raw_waypoints or []):
+            raw_coordinate = self._read_value(
+                raw_waypoint,
+                "coordinate",
+                self._read_value(raw_waypoint, "position", raw_waypoint),
+            )
+            waypoints.append(
+                _MissionWaypoint(
+                    coordinate=self._read_coordinate(raw_coordinate),
+                    sequence=int(self._read_value(raw_waypoint, "sequence", index)),
+                    waypoint_id=self._read_value(
+                        raw_waypoint,
+                        "waypoint_id",
+                        self._read_value(raw_waypoint, "id", None),
+                    ),
+                    hold_time_sec=float(
+                        self._read_value(raw_waypoint, "hold_time_sec", 0.0)
+                    ),
+                    speed_mps=float(
+                        self._read_value(raw_waypoint, "speed_mps", 0.0)
+                    ),
+                )
+            )
+        return waypoints
+
+    def _extract_patrol_boundary(self, mission_plan: object) -> list[GeoCoordinate]:
+        """Normalize an optional mission patrol boundary."""
+        raw_boundary = self._read_value(mission_plan, "patrol_boundary", [])
+        return [self._read_coordinate(coordinate) for coordinate in raw_boundary or []]
+
+    def _load_agent_route(
+        self,
+        agent: object,
+        waypoints: list[_MissionWaypoint],
+    ) -> None:
+        """Load a mission route into a UAVAgent-like object."""
+        navigation = getattr(agent, "navigation", None)
+        load_route = getattr(navigation, "load_route", None)
+        if callable(load_route):
+            load_route(list(waypoints))
+
+        first_waypoint = waypoints[0]
+        for method_name in ("navigate_to", "set_waypoint", "set_target_waypoint"):
+            method = getattr(agent, method_name, None)
+            if callable(method):
+                method(first_waypoint.coordinate.copy())
+                break
+
+        if hasattr(agent, "target_waypoint"):
+            agent.target_waypoint = first_waypoint.coordinate.copy()
+        if hasattr(agent, "current_waypoint"):
+            agent.current_waypoint = first_waypoint.coordinate.copy()
+        if hasattr(agent, "mission_status"):
+            agent.mission_status = self._coerce_enum_value(
+                getattr(agent, "mission_status"),
+                "ACTIVE",
+            )
+        self._set_agent_mode(agent, "PATROL")
+
+    def _handle_physics_events(self, events: list[SimEvent]) -> None:
+        """Apply engine-side reactions to physics events."""
+        for event in events:
+            if event.event_type != GEOFENCE_VIOLATION_EVENT:
+                continue
+            if event.uav_id is None:
+                continue
+
+            agent = self.uav_registry.get(event.uav_id)
+            if agent is None:
+                continue
+            self._trigger_hover(agent, "geofence violation")
+            event.details["action"] = "HOVER"
+
+    def _trigger_hover(self, agent: object, reason: str) -> None:
+        """Move a UAV into hover using local or branch-specific hooks."""
+        for method_name in ("triggerHover", "trigger_hover", "hover"):
+            method = getattr(agent, method_name, None)
+            if callable(method):
+                self._call_optional_reason_method(method, reason)
+                return
+        self._set_agent_mode(agent, "HOVER")
+
+    def _update_threat_detectors(
+        self,
+        uav_states: dict[int, UAVState],
+    ) -> list[SimEvent]:
+        """Run registered or agent-attached ThreatDetector objects."""
+        events: list[SimEvent] = []
+        sim_objects = self._build_threat_detector_objects()
+        detectors = self._collect_threat_detectors()
+
+        for uav_id, detector in detectors.items():
+            state = uav_states.get(uav_id)
+            update_method = getattr(detector, "update", None)
+            if state is None or not callable(update_method):
+                continue
+
+            try:
+                result = update_method(state.position.copy(), sim_objects)
+                events.extend(self._coerce_detector_events(result, uav_id))
+            except Exception as exc:
+                events.append(
+                    self._build_error_event(
+                        "ThreatDetector",
+                        exc,
+                        uav_id=uav_id,
+                    )
+                )
+
+        return events
+
+    def _collect_threat_detectors(self) -> dict[int, object]:
+        """Return explicitly registered and agent-attached threat detectors."""
+        detectors = dict(self._threat_detectors)
+        for uav_id, agent in self.uav_registry.items():
+            for attr_name in ("threat_detector", "threatDetector", "detector"):
+                detector = getattr(agent, attr_name, None)
+                if detector is not None:
+                    detectors.setdefault(uav_id, detector)
+                    break
+        return detectors
+
+    def _build_threat_detector_objects(self) -> list[dict[str, object]]:
+        """Convert SimObject models to the dict shape used by ThreatDetector."""
+        objects: list[dict[str, object]] = []
+        for sim_object in self.environment.sim_objects.values():
+            payload = {
+                "id": sim_object.object_id,
+                "lat": sim_object.position.latitude,
+                "lon": sim_object.position.longitude,
+                "alt": sim_object.position.altitude,
+                "radius_m": sim_object.radius_m,
+            }
+            payload.update(sim_object.metadata)
+            objects.append(payload)
+        return objects
+
+    def _coerce_detector_events(
+        self,
+        result: object,
+        uav_id: int,
+    ) -> list[SimEvent]:
+        """Convert optional detector return values into SimEvent objects."""
+        if result is None:
+            return []
+        if isinstance(result, SimEvent):
+            return [result]
+        if not isinstance(result, list):
+            return []
+
+        events: list[SimEvent] = []
+        for item in result:
+            if isinstance(item, SimEvent):
+                events.append(item)
+            else:
+                events.append(
+                    SimEvent(
+                        event_type=THREAT_DETECTED_EVENT,
+                        uav_id=uav_id,
+                        details={"alert": item},
+                    )
+                )
+        return events
+
+    def _should_complete_mission(self) -> bool:
+        """Return True when every registered UAV has finished its route."""
+        if self._mission_status != "ACTIVE":
+            return False
+        if not self.uav_registry:
+            return False
+        return all(
+            self._agent_route_complete(agent)
+            for agent in self.uav_registry.values()
+        )
+
+    def _agent_route_complete(self, agent: object) -> bool:
+        """Infer whether an agent has completed all mission waypoints."""
+        mission_status = _enum_or_value(
+            getattr(agent, "mission_status", None),
+            "",
+        )
+        if mission_status == "COMPLETED":
+            return True
+
+        for attr_name in ("completed", "is_complete", "route_complete"):
+            value = getattr(agent, attr_name, None)
+            if isinstance(value, bool) and value:
+                return True
+
+        navigation = getattr(agent, "navigation", None)
+        current_waypoint = getattr(navigation, "current_waypoint", None)
+        if callable(current_waypoint) and current_waypoint() is None:
+            return True
+
+        return False
+
     def _update_registered_agents(self, delta_time_s: float) -> None:
         """Invoke UAVAgent update/tick hooks before physics advances state."""
         obstacle_positions: list[GeoCoordinate] | None = None
 
         for agent in self.uav_registry.values():
-            update_method = getattr(agent, "update", None)
-            if callable(update_method):
-                self._call_update_method(update_method, delta_time_s)
-                continue
+            try:
+                update_method = getattr(agent, "update", None)
+                if callable(update_method):
+                    self._call_update_method(update_method, delta_time_s)
+                    continue
 
-            tick_method = getattr(agent, "tick", None)
-            if callable(tick_method):
-                if obstacle_positions is None:
-                    obstacle_positions = self._collect_obstacle_positions()
-                self._call_tick_method(tick_method, delta_time_s, obstacle_positions)
+                tick_method = getattr(agent, "tick", None)
+                if callable(tick_method):
+                    if obstacle_positions is None:
+                        obstacle_positions = self._collect_obstacle_positions()
+                    self._call_tick_method(
+                        tick_method,
+                        delta_time_s,
+                        obstacle_positions,
+                    )
+            except Exception as exc:
+                self._record_event(
+                    self._build_error_event(
+                        "UAVAgent",
+                        exc,
+                        uav_id=self._safe_agent_id(agent),
+                    )
+                )
 
     def _collect_obstacle_positions(self) -> list[GeoCoordinate]:
         """Return sim object positions in the shape expected by UAVAgent.tick()."""
@@ -360,10 +743,40 @@ class SimulationEngine:
             return
 
         for packet in telemetry_packets:
-            log_method(packet)
+            try:
+                log_method(packet)
+            except Exception as exc:
+                self._record_event(
+                    self._build_error_event("DataLogger.telemetry", exc)
+                )
 
         if should_flush:
             self._flush_data_logger(logger)
+
+    def _log_events(self, events: list[SimEvent]) -> None:
+        """Write simulation events to DataLogger when available."""
+        if not events:
+            return
+
+        logger = self._get_data_logger()
+        if logger is None:
+            return
+
+        log_incident = getattr(logger, "log_incident", None)
+        if not callable(log_incident):
+            return
+
+        for event in events:
+            try:
+                log_incident(
+                    incident_type=event.event_type,
+                    uav_id=event.uav_id if event.uav_id is not None else "SIM",
+                    details=str(event.details),
+                )
+            except Exception as exc:
+                self._record_event(
+                    self._build_error_event("DataLogger.events", exc)
+                )
 
     def _get_data_logger(self) -> object | None:
         """Resolve DataLogger lazily so simulation stays usable without atlas_data."""
@@ -393,7 +806,82 @@ class SimulationEngine:
 
         flush = getattr(target_logger, "flush", None)
         if callable(flush):
-            flush()
+            try:
+                flush()
+            except Exception:
+                return
+
+    def _record_event(self, event: SimEvent) -> SimEvent:
+        """Append an event to the current tick buffer with metadata."""
+        timestamp_ms = int(time.time() * 1000)
+        with self._lock:
+            if event.tick == 0:
+                event.tick = self.current_tick
+            if event.timestamp_ms == 0:
+                event.timestamp_ms = timestamp_ms
+            self.pending_events.append(event)
+        return event
+
+    def _record_and_log_event(self, event: SimEvent) -> SimEvent:
+        """Record an event and immediately send it to the logger."""
+        recorded_event = self._record_event(event)
+        self._log_events([recorded_event.copy()])
+        return recorded_event
+
+    def _build_error_event(
+        self,
+        subsystem: str,
+        exc: Exception,
+        uav_id: int | None = None,
+    ) -> SimEvent:
+        """Create a resilient-loop error event."""
+        return SimEvent(
+            event_type=SUBSYSTEM_ERROR_EVENT,
+            tick=self.current_tick,
+            timestamp_ms=int(time.time() * 1000),
+            uav_id=uav_id,
+            details={
+                "subsystem": subsystem,
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            },
+        )
+
+    def _safe_publish_telemetry(self, packet: object) -> None:
+        """Publish telemetry without letting bus failures stop the tick."""
+        try:
+            publish_telemetry(packet)
+        except Exception as exc:
+            self._record_and_log_event(
+                self._build_error_event("CommunicationBus.telemetry", exc)
+            )
+
+    def _safe_publish_world_state(self, world_state: WorldState) -> None:
+        """Publish world state without letting bus failures stop the tick."""
+        try:
+            publish_world_state(world_state)
+        except Exception as exc:
+            self._record_and_log_event(
+                self._build_error_event("CommunicationBus.world_state", exc)
+            )
+
+    def _safe_publish_emergency_event(self, event: SimEvent) -> None:
+        """Publish emergency events without coupling engine health to the bus."""
+        try:
+            publish_emergency_event(event)
+        except Exception as exc:
+            self._record_and_log_event(
+                self._build_error_event("CommunicationBus.emergency", exc)
+            )
+
+    def _safe_dispatch_messages(self) -> None:
+        """Dispatch queued bus messages without stopping the simulation."""
+        try:
+            dispatch_messages()
+        except Exception as exc:
+            self._record_and_log_event(
+                self._build_error_event("CommunicationBus.dispatch", exc)
+            )
 
     def _collect_uav_states(self) -> dict[int, UAVState]:
         """Normalize registered agents into internal UAVState objects."""
@@ -446,6 +934,41 @@ class SimulationEngine:
         for event in events:
             event.tick = self.current_tick
             event.timestamp_ms = timestamp_ms
+
+    @staticmethod
+    def _call_optional_reason_method(method: object, reason: str) -> None:
+        """Call a recovery hook with a reason only when it accepts one."""
+        if SimulationEngine._parameter_names(method):
+            method(reason)
+        else:
+            method()
+
+    @staticmethod
+    def _set_agent_mode(agent: object, mode: str) -> None:
+        """Set flight_mode while preserving enum-backed branch models."""
+        current_mode = getattr(agent, "flight_mode", None)
+        coerced_mode = SimulationEngine._coerce_enum_value(current_mode, mode)
+        setattr(agent, "flight_mode", coerced_mode)
+
+    @staticmethod
+    def _coerce_enum_value(current_value: object, value: str) -> object:
+        """Convert a string into the enum class already used by an object."""
+        if current_value is None:
+            return value
+
+        enum_type = type(current_value)
+        try:
+            return enum_type(value)
+        except (TypeError, ValueError):
+            return value
+
+    @staticmethod
+    def _safe_agent_id(agent: object) -> int | None:
+        """Best-effort integer UAV id extraction for error events."""
+        try:
+            return SimulationEngine._normalize_uav_id(agent)
+        except (AttributeError, ValueError):
+            return None
 
     @staticmethod
     def _call_update_method(method: object, delta_time_s: float) -> None:
@@ -553,6 +1076,13 @@ class SimulationEngine:
         return None
 
     @staticmethod
+    def _read_value(raw: object, key: str, default: object = None) -> object:
+        """Read a key from dict-like or attribute-backed objects."""
+        if isinstance(raw, dict):
+            return raw.get(key, default)
+        return getattr(raw, key, default)
+
+    @staticmethod
     def _normalize_uav_id(agent: object) -> int:
         """Extract a stable integer UAV id from an agent."""
         if not hasattr(agent, "uav_id"):
@@ -568,9 +1098,14 @@ class SimulationEngine:
         if raw is None:
             return GeoCoordinate(0.0, 0.0, 0.0)
 
-        latitude = getattr(raw, "latitude", getattr(raw, "lat", 0.0))
-        longitude = getattr(raw, "longitude", getattr(raw, "lon", 0.0))
-        altitude = getattr(raw, "altitude", getattr(raw, "alt", 0.0))
+        if isinstance(raw, dict):
+            latitude = raw.get("latitude", raw.get("lat", 0.0))
+            longitude = raw.get("longitude", raw.get("lon", 0.0))
+            altitude = raw.get("altitude", raw.get("alt", 0.0))
+        else:
+            latitude = getattr(raw, "latitude", getattr(raw, "lat", 0.0))
+            longitude = getattr(raw, "longitude", getattr(raw, "lon", 0.0))
+            altitude = getattr(raw, "altitude", getattr(raw, "alt", 0.0))
         return GeoCoordinate(float(latitude), float(longitude), float(altitude))
 
     @staticmethod
@@ -578,6 +1113,12 @@ class SimulationEngine:
         """Read a vector from an object exposing x/y/z values."""
         if raw is None:
             return Vector3D(0.0, 0.0, 0.0)
+        if isinstance(raw, dict):
+            return Vector3D(
+                float(raw.get("x", 0.0)),
+                float(raw.get("y", 0.0)),
+                float(raw.get("z", 0.0)),
+            )
         return Vector3D(
             float(getattr(raw, "x", 0.0)),
             float(getattr(raw, "y", 0.0)),
