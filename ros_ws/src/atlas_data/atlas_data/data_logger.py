@@ -100,7 +100,8 @@ class DataLogger:
         row = {}
         for field in self.TELEMETRY_FIELDS:
             if field in data:
-                row[field] = data[field]
+                value = data[field]
+                row[field] = value.value if hasattr(value, "value") else value
             elif field == "latitude" and "position" in data:
                 pos = data["position"]
                 row[field] = pos.latitude if hasattr(pos, "latitude") else pos.get("latitude")
@@ -121,6 +122,8 @@ class DataLogger:
                 row[field] = vel.z if hasattr(vel, "z") else vel.get("z")
             else:
                 row[field] = None
+
+        # Current TelemetryPacket does not provide heading/system_status; leave them as None.
         
         self.telemetry_buffer.append(row)
 

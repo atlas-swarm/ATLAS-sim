@@ -119,6 +119,7 @@ class CommandCenterInterface:
             
             bus = CommunicationBus.get_instance()
             bus.publish(MessageType.OPERATOR_COMMAND, command)
+            bus.dispatch()
             
             print(f"Operator override issued: {command}")
             

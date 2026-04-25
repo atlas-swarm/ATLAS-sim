@@ -62,6 +62,7 @@ class MissionController:
                 "waypoint_index": 0,
                 "waypoint": plan.waypoints[0] if plan.waypoints else None,
             })
+            bus.dispatch()
         except ImportError:
             # CommunicationBus not available yet - graceful degradation
             print("WARNING: CommunicationBus not available, command not sent")
@@ -80,6 +81,7 @@ class MissionController:
             bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "HOVER",
             })
+            bus.dispatch()
         except ImportError:
             # CommunicationBus not available yet - graceful degradation
             print("WARNING: CommunicationBus not available, command not sent")
@@ -99,6 +101,7 @@ class MissionController:
                 "command": "CONTINUE",
                 "waypoint_index": self.waypoint_index,
             })
+            bus.dispatch()
         except ImportError:
             # CommunicationBus not available yet - graceful degradation
             print("WARNING: CommunicationBus not available, command not sent")
@@ -117,6 +120,7 @@ class MissionController:
             bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "RTL",
             })
+            bus.dispatch()
         except ImportError:
             # CommunicationBus not available yet - graceful degradation
             print("WARNING: CommunicationBus not available, command not sent")
