@@ -59,8 +59,9 @@ class MissionController:
             # Publish NAVIGATE command with first waypoint
             bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "NAVIGATE",
-                "waypoint_index": 0,
+                "target": "ALL",
                 "waypoint": plan.waypoints[0] if plan.waypoints else None,
+                "waypoint_index": 0,
             })
             bus.dispatch()
         except ImportError:
@@ -80,6 +81,7 @@ class MissionController:
             bus = CommunicationBus.get_instance()
             bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "HOVER",
+                "target": "ALL",
             })
             bus.dispatch()
         except ImportError:
@@ -99,6 +101,7 @@ class MissionController:
             bus = CommunicationBus.get_instance()
             bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "CONTINUE",
+                "target": "ALL",
                 "waypoint_index": self.waypoint_index,
             })
             bus.dispatch()
@@ -119,6 +122,7 @@ class MissionController:
             bus = CommunicationBus.get_instance()
             bus.publish(MessageType.SWARM_COMMAND, {
                 "command": "RTL",
+                "target": "ALL",
             })
             bus.dispatch()
         except ImportError:

@@ -113,15 +113,26 @@ class CommandCenterInterface:
         Issue an operator override command.
         Publishes command via CommunicationBus and logs incident.
         """
+        if isinstance(command, dict):
+            payload = dict(command)
+            payload.setdefault("target", "ALL")
+            if "command" not in payload:
+                payload["command"] = str(command)
+        else:
+            payload = {
+                "command": str(command),
+                "target": "ALL",
+            }
+
         try:
             from atlas_communication.communication_bus import CommunicationBus
             from atlas_common import MessageType
             
             bus = CommunicationBus.get_instance()
-            bus.publish(MessageType.OPERATOR_COMMAND, command)
+            bus.publish(MessageType.OPERATOR_COMMAND, payload)
             bus.dispatch()
             
-            print(f"Operator override issued: {command}")
+            print(f"Operator override issued: {payload}")
             
         except ImportError:
             print("WARNING: CommunicationBus not available, command not sent")
@@ -137,7 +148,7 @@ class CommandCenterInterface:
             logger.log_incident(
                 incident_type=IncidentType.GEOFENCE_VIOLATION,  # Representative type for override
                 uav_id="OPERATOR",
-                details=f"Operator override command issued: {command}",
+                details=f"Operator override command issued: {payload}",
             )
         except Exception as e:
             print(f"WARNING: Could not log incident: {e}")
