@@ -3,41 +3,18 @@
 <package format="3">
   <name>atlas_communication</name>
   <version>0.1.0</version>
-  <description>
-    Communication infrastructure for the ATLAS UAV swarm simulation.
-    Provides CommunicationBus (singleton pub/sub/dispatch), TelemetryPacket DTO,
-    MessageRouter with MessageType enum, and a NetworkSimulator skeleton.
-  </description>
-
-  <maintainer email="selerdems@gmail.com">Selen Erdem</maintainer>
+  <description>Communication bus, routing, telemetry packet, and network simulation for the ATLAS project.</description>
+  <maintainer email="cangundogdu310@gmail.com">Can Gundogdu</maintainer>
   <license>MIT</license>
 
-  <!-- Build tool -->
-  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>atlas_common</depend>
 
-  <!-- Core ROS 2 runtime -->
-  <depend>rclcpp</depend>
-
-  <!-- Standard message types used by TelemetryPacket and MessageRouter -->
-  <depend>std_msgs</depend>
-  <depend>sensor_msgs</depend>
-  <depend>geometry_msgs</depend>
-  <depend>builtin_interfaces</depend>
-
-  <!-- Custom message / service generation -->
-  <build_depend>rosidl_default_generators</build_depend>
-  <exec_depend>rosidl_default_runtime</exec_depend>
-  <member_of_group>rosidl_interface_packages</member_of_group>
-
-  <!-- JSON serialisation (nlohmann/json shipped with ROS 2 Jazzy) -->
-  <depend>nlohmann_json_vendor</depend>
-
-  <!-- Test dependencies -->
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
-  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
 
   <export>
-    <build_type>ament_cmake</build_type>
+    <build_type>ament_python</build_type>
   </export>
 </package>
