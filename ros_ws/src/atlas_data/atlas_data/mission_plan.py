@@ -39,6 +39,7 @@ class MissionPlan:
             waypoints.append(
                 Waypoint(
                     coordinate=coordinate,
+                    waypoint_id=item.get("waypoint_id"),
                     hold_time_sec=item.get("hold_time_sec", 0.0),
                     speed_mps=item.get("speed_mps", 0.0),
                 )

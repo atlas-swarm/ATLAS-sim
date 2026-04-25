@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import shutil
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -33,6 +34,7 @@ class DataLogger:
     telemetry_buffer: list[dict[str, Any]] = field(default_factory=list)
     event_buffer: list[dict[str, Any]] = field(default_factory=list)
     _closed: bool = field(default=False, init=False)
+    _last_flush_time: float = field(default_factory=time.monotonic, init=False)
 
     TELEMETRY_FIELDS = [
         "timestamp",
@@ -126,6 +128,7 @@ class DataLogger:
         # Current TelemetryPacket does not provide heading/system_status; leave them as None.
         
         self.telemetry_buffer.append(row)
+        self._maybe_flush()
 
     def log_threat_event(self, alert: ThreatAlert | dict[str, Any]) -> None:
         """Log threat event. Accepts ThreatAlert object or dict."""
@@ -162,6 +165,7 @@ class DataLogger:
             "is_acknowledged": data.get("is_acknowledged", False),
         }
         self.event_buffer.append(record)
+        self._maybe_flush()
 
     def log_incident(
         self,
@@ -187,11 +191,13 @@ class DataLogger:
             "details": details,
         }
         self.event_buffer.append(record)
+        self._maybe_flush()
 
     def flush(self) -> None:
         """Flush both telemetry and event buffers to disk."""
         self._flush_telemetry()
         self._flush_events()
+        self._last_flush_time = time.monotonic()
 
     def close(self) -> None:
         """Close the logger: flush all buffers and mark as closed."""
@@ -237,3 +243,15 @@ class DataLogger:
                 jsonl_file.write(json.dumps(record) + "\n")
 
         self.event_buffer.clear()
+
+    def _maybe_flush(self) -> None:
+        """Flush buffers when the configured flush interval has elapsed."""
+        if self._closed:
+            return
+
+        if self.buffer_flush_interval_ms <= 0:
+            return
+
+        elapsed_ms = (time.monotonic() - self._last_flush_time) * 1000
+        if elapsed_ms >= self.buffer_flush_interval_ms:
+            self.flush()

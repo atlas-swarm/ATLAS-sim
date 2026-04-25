@@ -38,7 +38,25 @@ class MissionReplayer:
             return False
 
     def play(self) -> None:
+        if not self.loaded_frames:
+            self.is_playing = False
+            return
+
         self.is_playing = True
+
+        # Smallest practical playback progression: advance to the next frame
+        # based on the current timestamp and replay speed.
+        if self.current_timestamp == 0:
+            self.current_timestamp = int(self.loaded_frames[0].get("timestamp", 0))
+            return
+
+        current_index = min(
+            range(len(self.loaded_frames)),
+            key=lambda i: abs(int(self.loaded_frames[i].get("timestamp", 0)) - self.current_timestamp),
+        )
+        step = max(1, int(self.replay_speed))
+        next_index = min(current_index + step, len(self.loaded_frames) - 1)
+        self.current_timestamp = int(self.loaded_frames[next_index].get("timestamp", 0))
 
     def pause(self) -> None:
         self.is_playing = False
