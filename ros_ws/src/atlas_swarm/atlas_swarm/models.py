@@ -1,19 +1,18 @@
-"""Swarm-level data transfer objects and command/message enumerations."""
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from atlas_common.geo_coordinate import GeoCoordinate
+from atlas_common.enums import FormationType  # noqa: F401  (re-export)
+from atlas_common.geo_coordinate import GeoCoordinate  # noqa: F401
 
 
 # ------------------------------------------------------------------ #
-#  UAV command (atlas_uav ← atlas_swarm direction)                   #
+#  UAV command (SwarmCoordinator → UAVAgent)                          #
 # ------------------------------------------------------------------ #
 
 class UAVCommandType(str, Enum):
-    """Types of commands that can be dispatched to a UAVAgent."""
-
     NAVIGATE = "NAVIGATE"
     SET_MODE = "SET_MODE"
     EMERGENCY = "EMERGENCY"
@@ -21,31 +20,25 @@ class UAVCommandType(str, Enum):
 
 @dataclass
 class UAVCommand:
-    """Command envelope sent from SwarmCoordinator to a single UAVAgent."""
-
     type: UAVCommandType
     payload: dict[str, Any] = field(default_factory=dict)
 
 
 # ------------------------------------------------------------------ #
-#  Patrol zone                                                         #
+#  Patrol zone                                                        #
 # ------------------------------------------------------------------ #
 
 @dataclass
 class PatrolZone:
-    """Geographic region assigned to one UAV for surveillance."""
-
     assigned_uav_id: int
     boundary: list[GeoCoordinate] = field(default_factory=list)
 
 
 # ------------------------------------------------------------------ #
-#  Swarm messaging                                                     #
+#  Swarm messaging                                                    #
 # ------------------------------------------------------------------ #
 
 class SwarmMessageType(str, Enum):
-    """Types of messages exchanged between swarm members."""
-
     ZONE_UPDATE = "ZONE_UPDATE"
     FORMATION_CHANGE = "FORMATION_CHANGE"
     BROADCAST = "BROADCAST"
@@ -53,8 +46,6 @@ class SwarmMessageType(str, Enum):
 
 @dataclass
 class SwarmMessage:
-    """Message envelope published over CommunicationBus as SWARM_COMMAND."""
-
     sender_id: int
     type: SwarmMessageType
     payload: Any = None

@@ -8,9 +8,8 @@ from typing import TYPE_CHECKING
 from atlas_common.geo_coordinate import GeoCoordinate
 from atlas_swarm.formation_manager import FormationManager
 from atlas_swarm.models import PatrolZone, SwarmMessage
-from atlas_threat.threat_alert import ThreatAlert
-
 if TYPE_CHECKING:
+    from atlas_threat.threat_alert import ThreatAlert
     from atlas_uav.uav_agent import UAVAgent
 
 
