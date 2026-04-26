@@ -5,6 +5,7 @@ from atlas_swarm.models import (
     SwarmMessageType,
     UAVCommand,
     UAVCommandType,
+    Waypoint,
 )
 from atlas_swarm.swarm_coordinator import SwarmCoordinator
 
@@ -16,4 +17,5 @@ __all__ = [
     "PatrolZone",
     "SwarmMessage",
     "SwarmMessageType",
+    "Waypoint",
 ]

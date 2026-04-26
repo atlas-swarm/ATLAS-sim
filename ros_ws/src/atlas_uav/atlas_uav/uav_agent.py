@@ -96,22 +96,36 @@ class UAVAgent:
         )
         CommunicationBus.get_instance().publish(Message(MessageType.TELEMETRY, packet))
 
-    def receive_command(self, cmd: UAVCommand) -> None:
-        """Handle an incoming UAVCommand: NAVIGATE, SET_MODE, or EMERGENCY."""
-        # Lazy import avoids circular dependency: atlas_swarm → atlas_uav → atlas_swarm.
+    def receive_command(self, cmd: "UAVCommand") -> None:
+        """Handle an incoming UAVCommand: NAVIGATE, SET_MODE, EMERGENCY, HOVER, CONTINUE, RTL."""
         from atlas_swarm.models import UAVCommandType
 
         if cmd.type == UAVCommandType.NAVIGATE:
             waypoints = cmd.payload.get("waypoints", [])
             self.navigation.load_route(waypoints)
-            self.mission_status = MissionStatus.ACTIVE
+            self.mission_status = MissionStatus.RUNNING
             self.flight_mode = FlightMode.PATROL
+
         elif cmd.type == UAVCommandType.SET_MODE:
             self.flight_mode = FlightMode(cmd.payload["mode"])
+
         elif cmd.type == UAVCommandType.EMERGENCY:
             reason = cmd.payload.get("reason", "external emergency command")
             self.emergency.report_fault(reason)
             self.abort()
+
+        elif cmd.type == UAVCommandType.HOVER:
+            self.flight_mode = FlightMode.HOVER
+
+        elif cmd.type == UAVCommandType.CONTINUE:
+            if self.flight_mode == FlightMode.HOVER:
+                self.flight_mode = FlightMode.PATROL
+
+        elif cmd.type == UAVCommandType.RTL:
+            reason = cmd.payload.get("reason", "RTL command received")
+            self.emergency.report_fault(reason)
+            self.flight_mode = FlightMode.RTL
+            self.mission_status = MissionStatus.ABORTED
 
     # ------------------------------------------------------------------ #
     #  Health check                                                        #
