@@ -5,8 +5,8 @@ from atlas_communication.communication_bus import CommunicationBus
 from atlas_threat.sensor_simulator import SensorSimulator
 from atlas_threat.threat_alert import ThreatAlert
 
-# 🔥 Engine ile aynı event adı
-THREAT_DETECTED_EVENT = "THREAT_DETECTED_EVENT"
+# Engine (simulation_engine.py) ile aynı event adı
+THREAT_DETECTED_EVENT = "THREAT_DETECTED"
 
 
 class ThreatDetector:
@@ -42,8 +42,9 @@ class ThreatDetector:
         else:
             return ThreatClassification.UNKNOWN, 0.50
 
-    def generate_alert(self, obj: dict, position: GeoCoordinate):
-        classification, confidence = self.classify(obj)
+    def generate_alert(self, obj: dict, position: GeoCoordinate, classification=None, confidence=None):
+        if classification is None or confidence is None:
+            classification, confidence = self.classify(obj)
 
         alert = ThreatAlert(
             threat_coordinates=GeoCoordinate(
@@ -80,15 +81,14 @@ class ThreatDetector:
             classification, confidence = self.classify(obj)
 
             if confidence >= self.detection_threshold:
-                alert_event = self.generate_alert(obj, position)
+                alert_event = self.generate_alert(obj, position, classification, confidence)
 
                 # Engine bunu SimEvent'e çevirecek
                 events.append(alert_event)
 
-        # 📡 mesajları gönder
         self.bus.dispatch()
 
-        return events  # 🔥 EN KRİTİK NOKTA
+        return events
 
     def set_detection_radius(self, radius: float):
         self.detection_radius = radius

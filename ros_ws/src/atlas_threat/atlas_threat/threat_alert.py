@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass, field
+from typing import Optional
 
 from atlas_common import GeoCoordinate, ThreatClassification, SeverityLevel
 
@@ -11,7 +12,7 @@ class ThreatAlert:
     confidence_score: float
     uav_id: int
     timestamp: int
-    detection_position: GeoCoordinate = None  # algılama anında UAV'ın konumu
+    detection_position: Optional[GeoCoordinate] = None  # algılama anında UAV'ın konumu
     alert_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     is_acknowledged: bool = False
 

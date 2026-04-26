@@ -20,7 +20,10 @@ from pathlib import Path
 # ROS paket dizinlerini Python path'e ekle
 _src = Path(__file__).parent
 sys.path.insert(0, str(_src))
-sys.path.insert(0, str(_src / "atlas_commandcenter"))  # atlas_commandcenter/atlas_commandcenter/
+sys.path.insert(0, str(_src / "atlas_common"))          # atlas_common/atlas_common/
+sys.path.insert(0, str(_src / "atlas_communication"))   # atlas_communication/atlas_communication/
+sys.path.insert(0, str(_src / "atlas_threat"))          # atlas_threat/atlas_threat/
+sys.path.insert(0, str(_src / "atlas_commandcenter"))   # atlas_commandcenter/atlas_commandcenter/
 
 
 # atlas_data ve atlas_common henüz mevcut değil — mock olarak tanımla
@@ -60,7 +63,7 @@ def test_single_uav_alert():
 
     # UAV-1: bir tehdit objesinin yanında
     detector = ThreatDetector(uav_id=1)
-    uav_position = GeoCoordinate(lat=41.0, lon=29.0, alt=100.0)
+    uav_position = GeoCoordinate(latitude=41.0, longitude=29.0, altitude=100.0)
     sim_objects = [
         {"type": "VEHICLE", "lat": 41.0, "lon": 29.0},
     ]
@@ -85,12 +88,12 @@ def test_two_uavs_simultaneous_alerts():
 
     # UAV-1
     detector_1 = ThreatDetector(uav_id=1)
-    pos_1 = GeoCoordinate(lat=41.0, lon=29.0, alt=80.0)
+    pos_1 = GeoCoordinate(latitude=41.0, longitude=29.0, altitude=80.0)
     objects_1 = [{"type": "VEHICLE", "lat": 41.0, "lon": 29.0}]
 
     # UAV-2
     detector_2 = ThreatDetector(uav_id=2)
-    pos_2 = GeoCoordinate(lat=41.5, lon=29.5, alt=120.0)
+    pos_2 = GeoCoordinate(latitude=41.5, longitude=29.5, altitude=120.0)
     objects_2 = [{"type": "PERSON", "lat": 41.5, "lon": 29.5}]
 
     # Her iki UAV güncelleme yapıyor (dispatch ayrı ayrı tetikleniyor)
@@ -120,7 +123,7 @@ def test_alert_not_delivered_when_out_of_range():
     bus.subscribe(MessageType.THREAT_ALERT, cc.on_alert_received)
 
     detector = ThreatDetector(uav_id=3)
-    uav_position = GeoCoordinate(lat=41.0, lon=29.0, alt=100.0)
+    uav_position = GeoCoordinate(latitude=41.0, longitude=29.0, altitude=100.0)
     # ~1.5 km uzakta → detection_radius=100m dışında
     sim_objects = [{"type": "VEHICLE", "lat": 41.015, "lon": 29.015}]
 
