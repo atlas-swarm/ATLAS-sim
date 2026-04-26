@@ -54,7 +54,7 @@ class ThreatDetector:
             ),
             classification=classification,
             confidence_score=confidence,
-            uav_id=self.uav_id,
+            detected_by_uav_id=self.uav_id,
             timestamp=int(time.time()),
             detection_position=position,
         )

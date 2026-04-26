@@ -10,7 +10,7 @@ class ThreatAlert:
     threat_coordinates: GeoCoordinate   # tehdidin konumu
     classification: ThreatClassification
     confidence_score: float
-    uav_id: int
+    detected_by_uav_id: int
     timestamp: int
     detection_position: Optional[GeoCoordinate] = None  # algılama anında UAV'ın konumu
     alert_id: str = field(default_factory=lambda: str(uuid.uuid4()))
