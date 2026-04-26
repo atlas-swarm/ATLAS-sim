@@ -4,7 +4,7 @@ from enum import Enum
 class MissionStatus(str, Enum):
     IDLE = "IDLE"
     LOADED = "LOADED"
-    ACTIVE = "ACTIVE"
+    RUNNING = "RUNNING"
     PAUSED = "PAUSED"
     ABORTED = "ABORTED"
     COMPLETED = "COMPLETED"
