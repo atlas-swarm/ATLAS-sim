@@ -45,8 +45,8 @@ class UAVAgent:
         correction = self.avoider.evaluate(self.position, self.velocity, obstacles)
         if correction is not None:
             self.velocity = correction
-            self.flight_mode = FlightMode.HOVER
-            return
+            self.navigation.set_avoidance_correction(correction)
+            return  # flight_mode değişmez, waypoint ve PATROL modu korunur
 
         if self.navigation.has_reached(self.position):
             advanced = self.navigation.advance()

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Callable, Optional
 
 from atlas_common.enums import FlightMode
 
@@ -13,6 +14,9 @@ class EmergencyHandler:
     uav_id: str
     battery_rtl_threshold: float = 20.0  # percent
     _active_faults: list[str] = field(default_factory=list, init=False, repr=False)
+    on_uav_lost: Optional[Callable[[str], None]] = field(
+        default=None, init=False, repr=False
+    )
 
     def report_fault(self, fault: str) -> None:
         """Record a new fault with a timestamp."""
@@ -22,10 +26,17 @@ class EmergencyHandler:
     def recommend_mode(self, battery_pct: float) -> FlightMode:
         """Return the safest flight mode given current faults and battery level."""
         if battery_pct <= 0:
+            self._fire_uav_lost()
             return FlightMode.LAND
         if battery_pct <= self.battery_rtl_threshold or self._active_faults:
+            self._fire_uav_lost()
             return FlightMode.RTL
         return FlightMode.PATROL
+
+    def _fire_uav_lost(self) -> None:
+        if self.on_uav_lost is not None:
+            self.on_uav_lost(self.uav_id)
+            self.on_uav_lost = None  # tek seferlik
 
     def clear_faults(self) -> None:
         """Remove all recorded faults after successful recovery."""

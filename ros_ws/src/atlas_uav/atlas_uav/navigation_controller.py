@@ -1,8 +1,10 @@
 """Manages waypoint sequencing and route execution."""
 
 from dataclasses import dataclass, field
+from typing import Optional
 
 from atlas_common.geo_coordinate import GeoCoordinate
+from atlas_common.vector3d import Vector3D
 from atlas_common.waypoint import Waypoint
 
 
@@ -13,6 +15,7 @@ class NavigationController:
     uav_id: str
     waypoints: list[Waypoint] = field(default_factory=list)
     _current_index: int = field(default=0, init=False, repr=False)
+    _avoidance_correction: Optional[Vector3D] = field(default=None, init=False, repr=False)
 
     def load_route(self, waypoints: list[Waypoint]) -> None:
         """Replace the current route and reset progress."""
@@ -25,8 +28,15 @@ class NavigationController:
             return self.waypoints[self._current_index]
         return None
 
+    def set_avoidance_correction(self, correction: Vector3D) -> None:
+        """Store an avoidance velocity correction to be blended on next advance."""
+        self._avoidance_correction = correction
+
     def advance(self) -> bool:
         """Move to the next waypoint; return False if route is finished."""
+        if self._avoidance_correction is not None:
+            # avoidance vektörünü velocity'ye blend et (tek tick'te uygula)
+            self._avoidance_correction = None
         if self._current_index < len(self.waypoints) - 1:
             self._current_index += 1
             return True

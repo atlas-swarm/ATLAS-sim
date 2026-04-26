@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from atlas_common.enums import FormationType
 from atlas_common.geo_coordinate import GeoCoordinate
@@ -65,9 +65,51 @@ class FormationManager:
 
         return positions
 
-    def adapt_formation(self, event: Any) -> None:
-        """Adapt the formation in response to a swarm event."""
-        # TODO: Hafta 3
+    def adapt_formation(self, event: Any) -> FormationType:
+        """Adapt the formation in response to a swarm event (ThreatAlert or dict)."""
+        if self.formation_type == FormationType.V_SHAPE:
+            self.set_formation_type(FormationType.GRID)
+        else:
+            self.set_formation_type(FormationType.DISTRIBUTED)
+        return self.formation_type
+
+    def get_lead_uav(self, agents: list[UAVAgent]) -> Optional[UAVAgent]:
+        """Return the healthiest UAV as lead; re-assigns roles if lead changes."""
+        healthy = [a for a in agents if a.is_healthy()]
+        if not healthy:
+            return None
+        lead = max(healthy, key=lambda a: a.battery_pct)
+        lead_index = agents.index(lead) if lead in agents else 0
+        if lead_index != self.lead_uav_id:
+            self.assign_formation_roles(agents)
+        return lead
+
+    def transition_formation(
+        self, agents: list[UAVAgent], target_type: FormationType
+    ) -> None:
+        """Change formation type, re-assign roles, and navigate each agent to its slot."""
+        from atlas_swarm.models import UAVCommand, UAVCommandType, Waypoint
+
+        self.set_formation_type(target_type)
+        self.assign_formation_roles(agents)
+        positions = self.compute_formation_positions(agents)
+        for i, agent in enumerate(agents):
+            target_coord = positions.get(i)
+            if target_coord is None:
+                continue
+            cmd = UAVCommand(
+                type=UAVCommandType.NAVIGATE,
+                payload={
+                    "waypoints": [
+                        Waypoint(
+                            coordinate=target_coord,
+                            altitude=agent.position.altitude,
+                        )
+                    ]
+                },
+                target_uav_id=agent.uav_id,
+            )
+            agent.receive_command(cmd)
 
     # ------------------------------------------------------------------ #
     #  Private helpers                                                     #

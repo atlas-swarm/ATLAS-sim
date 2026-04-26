@@ -131,6 +131,14 @@ class SwarmCoordinator:
         from atlas_communication.communication_bus import CommunicationBus, Message, MessageType
         CommunicationBus.get_instance().publish(Message(MessageType.SWARM_COMMAND, msg))
 
+    def handle_uav_lost(self, uav_id: str) -> None:
+        """EmergencyHandler callback'i tarafından çağrılır."""
+        self._agents = [a for a in self._agents if a.uav_id != uav_id]
+        try:
+            self.redistribute_zones(int(uav_id))
+        except (ValueError, TypeError):
+            pass
+
     def handle_operator_command(self, payload: dict) -> None:
         cmd_type_str = payload.get("command_type")
         try:
