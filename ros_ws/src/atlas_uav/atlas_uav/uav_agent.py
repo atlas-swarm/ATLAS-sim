@@ -1,4 +1,11 @@
-"""Top-level UAV agent coordinating navigation, avoidance, and emergency handling."""
+"""Top-level UAV agent coordinating navigation, avoidance, and emergency handling.
+
+Hafta 4 değişiklikleri:
+  4.2.1 — tick() içinde NavigationController.compute_velocity() kullanılarak
+           velocity sert atlamak yerine smooth interpolasyonla güncellenir.
+  4.2.2 — Avoidance vektörü uygulandığında waypoint hedefi kaybolmaz:
+           correction NavigationController'a iletilir, blend orada yapılır.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +22,9 @@ from atlas_uav.navigation_controller import NavigationController
 
 if TYPE_CHECKING:
     from atlas_swarm.models import UAVCommand
+
+# UAV seyir hızı (m/s) — demo parametresi
+_CRUISE_SPEED_MPS: float = 5.0
 
 
 @dataclass
@@ -36,18 +46,36 @@ class UAVAgent:
     # ------------------------------------------------------------------ #
 
     def tick(self, obstacles: list[GeoCoordinate]) -> None:
-        """Execute one control cycle: check emergencies, avoidance, navigation."""
+        """Execute one control cycle: emergencies → avoidance → navigation.
+
+        4.2.2 öncelik mantığı:
+          - avoidance tetiklenirse correction NavigationController'a iletilir.
+          - NavigationController bunu waypoint yönüyle blend eder.
+          - Bu tick'te velocity avoidance-blend sonucu olur; waypoint hedefi korunur.
+
+        4.2.1 smooth hareket:
+          - Avoidance yoksa compute_velocity() interpolated velocity döndürür.
+          - Sert pozisyon atlama yok.
+        """
+        # 1) Emergency kontrolü — en yüksek öncelik
         recommended = self.emergency.recommend_mode(self.battery_pct)
         if recommended in (FlightMode.RTL, FlightMode.LAND):
             self.flight_mode = recommended
+            self.velocity = Vector3D(0.0, 0.0, 0.0)
             return
 
+        # 2) Collision avoidance
         correction = self.avoider.evaluate(self.position, self.velocity, obstacles)
         if correction is not None:
-            self.velocity = correction
+            # Correction NavigationController'a iletilir → blend orada yapılır
             self.navigation.set_avoidance_correction(correction)
-            return  # flight_mode değişmez, waypoint ve PATROL modu korunur
 
+        # 3) Navigation — smooth interpolated velocity (avoidance dahil blend)
+        nav_velocity = self.navigation.compute_velocity(self.position, _CRUISE_SPEED_MPS)
+        if nav_velocity is not None:
+            self.velocity = nav_velocity
+
+        # 4) Waypoint ulaşım kontrolü
         if self.navigation.has_reached(self.position):
             advanced = self.navigation.advance()
             if not advanced:
@@ -58,6 +86,7 @@ class UAVAgent:
         """Immediately cancel the mission and enter RTL."""
         self.mission_status = MissionStatus.ABORTED
         self.flight_mode = FlightMode.RTL
+        self.velocity = Vector3D(0.0, 0.0, 0.0)
 
     # ------------------------------------------------------------------ #
     #  Communication & command handling                                    #
@@ -65,7 +94,6 @@ class UAVAgent:
 
     def report_status(self) -> None:
         """Produce a TelemetryPacket snapshot and publish it as TELEMETRY."""
-        # Lazy imports keep atlas_communication failures isolated to call time.
         from atlas_communication.communication_bus import (
             CommunicationBus,
             Message,
@@ -97,7 +125,7 @@ class UAVAgent:
         CommunicationBus.get_instance().publish(Message(MessageType.TELEMETRY, packet))
 
     def receive_command(self, cmd: "UAVCommand") -> None:
-        """Handle an incoming UAVCommand: NAVIGATE, SET_MODE, EMERGENCY, HOVER, CONTINUE, RTL."""
+        """Handle an incoming UAVCommand."""
         from atlas_swarm.models import UAVCommandType
 
         if cmd.type == UAVCommandType.NAVIGATE:
@@ -116,6 +144,7 @@ class UAVAgent:
 
         elif cmd.type == UAVCommandType.HOVER:
             self.flight_mode = FlightMode.HOVER
+            self.velocity = Vector3D(0.0, 0.0, 0.0)
 
         elif cmd.type == UAVCommandType.CONTINUE:
             if self.flight_mode == FlightMode.HOVER:
@@ -126,6 +155,7 @@ class UAVAgent:
             self.emergency.report_fault(reason)
             self.flight_mode = FlightMode.RTL
             self.mission_status = MissionStatus.ABORTED
+            self.velocity = Vector3D(0.0, 0.0, 0.0)
 
     # ------------------------------------------------------------------ #
     #  Health check                                                        #
