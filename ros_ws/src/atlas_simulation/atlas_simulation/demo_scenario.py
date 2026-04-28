@@ -16,6 +16,7 @@ from atlas_simulation.models import (
     SimObject,
     Vector3D,
     approx_distance_m,
+    meters_to_longitude,
 )
 from atlas_simulation.simulation_engine import (
     SimulationEngine,
@@ -26,7 +27,7 @@ from atlas_simulation.simulation_engine import (
 DEFAULT_MISSION_PATH = (
     Path(__file__).resolve().parents[1]
     / "missions"
-    / "rectangular_patrol_3uav.json"
+    / "mission_demo.json"
 )
 
 
@@ -255,6 +256,18 @@ def run_demo(config_path: Path | str = DEFAULT_MISSION_PATH) -> dict[str, object
     log_config = config.get("logs", {})
     flight_log_path = Path(log_config.get("flight", "logs/demo_flight_log.csv"))
     event_log_path = Path(log_config.get("events", "logs/demo_event_log.jsonl"))
+    tick_interval_ms = _config_int(
+        config,
+        "tick_interval_ms",
+        "tickIntervalMs",
+        default=100,
+    )
+    detection_radius_m = _config_float(
+        config,
+        "detection_radius_m",
+        "detectionRadius",
+        default=180.0,
+    )
 
     if flight_log_path.exists():
         flight_log_path.unlink()
@@ -272,7 +285,7 @@ def run_demo(config_path: Path | str = DEFAULT_MISSION_PATH) -> dict[str, object
             radius_m=float(item.get("radius_m", 0.0)),
             metadata=dict(item.get("metadata", {})),
         )
-        for item in config.get("sim_objects", [])
+        for item in _config_list(config, "sim_objects", "simObjects")
     ]
 
     SimulationEngine.reset_instance()
@@ -280,38 +293,51 @@ def run_demo(config_path: Path | str = DEFAULT_MISSION_PATH) -> dict[str, object
     engine.initialize(
         SimConfig(
             patrol_boundary=boundary,
-            tick_interval_ms=int(config.get("tick_interval_ms", 100)),
+            tick_interval_ms=tick_interval_ms,
             initial_sim_objects=sim_objects,
         )
     )
     engine.set_data_logger(DemoDataLogger(flight_log_path, event_log_path))
 
-    for item in config["uavs"]:
+    for index, item in enumerate(config["uavs"]):
         agent = DemoUAVAgent(
             uav_id=int(item["uav_id"]),
-            position=_coordinate_from_dict(item["initial_position"]),
+            position=_resolve_initial_position(config, item, index),
             speed_mps=float(item.get("speed_mps", 35.0)),
         )
         engine.register_uav(agent)
         engine.register_threat_detector(
             DemoThreatDetector(
                 uav_id=agent.uav_id,
-                detection_radius_m=float(config.get("detection_radius_m", 180.0)),
+                detection_radius_m=detection_radius_m,
             ),
             uav_id=agent.uav_id,
         )
 
     engine.start_mission(config)
-    max_ticks = int(config.get("max_ticks", 600))
+    max_ticks = _config_int(config, "max_ticks", "maxTicks", default=600)
+    tick_durations_ms: list[float] = []
     for _ in range(max_ticks):
         engine.tick()
+        tick_durations_ms.append(engine.last_tick_duration_ms)
         if engine._mission_status != "ACTIVE":
             break
     engine.stop()
 
+    avg_tick_duration_ms = (
+        sum(tick_durations_ms) / len(tick_durations_ms)
+        if tick_durations_ms
+        else 0.0
+    )
     summary = {
         "mission_status": engine._mission_status,
         "ticks": engine.current_tick,
+        "uav_count": len(config["uavs"]),
+        "waypoint_count": len(config["waypoints"]),
+        "sim_object_count": len(sim_objects),
+        "tick_interval_ms": tick_interval_ms,
+        "avg_tick_duration_ms": avg_tick_duration_ms,
+        "max_tick_duration_ms": max(tick_durations_ms, default=0.0),
         "flight_log": str(flight_log_path),
         "event_log": str(event_log_path),
         "flight_log_exists": flight_log_path.exists(),
@@ -340,6 +366,75 @@ def _coordinate_from_dict(data: dict[str, object]) -> GeoCoordinate:
         longitude=float(data["longitude"]),
         altitude=float(data.get("altitude", 0.0)),
     )
+
+
+def _resolve_initial_position(
+    config: dict[str, object],
+    uav_config: dict[str, object],
+    index: int,
+) -> GeoCoordinate:
+    raw_position = _config_value(
+        uav_config,
+        "initial_position",
+        "initialPosition",
+    )
+    if raw_position is not None:
+        return _coordinate_from_dict(raw_position)
+
+    raw_origin = _config_value(
+        config,
+        "formation_origin",
+        "formationOrigin",
+        default=config["waypoints"][0]["coordinate"],
+    )
+    origin = _coordinate_from_dict(raw_origin)
+    spacing_m = _config_float(
+        config,
+        "formation_spacing_m",
+        "formationSpacing",
+        default=0.0,
+    )
+    return GeoCoordinate(
+        latitude=origin.latitude,
+        longitude=origin.longitude
+        + meters_to_longitude(spacing_m * index, origin.latitude),
+        altitude=origin.altitude,
+    )
+
+
+def _config_value(
+    data: dict[str, object],
+    *keys: str,
+    default: object = None,
+) -> object:
+    for key in keys:
+        if key in data:
+            return data[key]
+    return default
+
+
+def _config_int(
+    data: dict[str, object],
+    *keys: str,
+    default: int,
+) -> int:
+    return int(_config_value(data, *keys, default=default))
+
+
+def _config_float(
+    data: dict[str, object],
+    *keys: str,
+    default: float,
+) -> float:
+    return float(_config_value(data, *keys, default=default))
+
+
+def _config_list(
+    data: dict[str, object],
+    *keys: str,
+) -> list[dict[str, object]]:
+    value = _config_value(data, *keys, default=[])
+    return list(value)
 
 
 def _file_contains(path: Path, text: str) -> bool:

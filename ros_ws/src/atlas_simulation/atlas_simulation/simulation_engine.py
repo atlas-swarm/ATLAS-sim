@@ -88,6 +88,8 @@ class SimulationEngine:
         self._mission_status = "IDLE"
         self._mission_waypoints: list[_MissionWaypoint] = []
         self._threat_detectors: dict[int, object] = {}
+        self.last_tick_duration_ms = 0.0
+        self.max_tick_duration_ms = 0.0
 
         self._initialized = False
         self._lock = threading.RLock()
@@ -147,6 +149,8 @@ class SimulationEngine:
             self._mission_status = "IDLE"
             self._mission_waypoints = []
             self._threat_detectors = {}
+            self.last_tick_duration_ms = 0.0
+            self.max_tick_duration_ms = 0.0
             self._loop_state.stop_event = threading.Event()
             self._initialized = True
 
@@ -351,6 +355,7 @@ class SimulationEngine:
                 "SimulationEngine must be initialized before running cycles"
             )
 
+        tick_started = time.perf_counter()
         with self._lock:
             self.pending_events.clear()
             self.current_tick += 1
@@ -359,27 +364,21 @@ class SimulationEngine:
 
             self._update_registered_agents(delta_time_s)
             uav_states = self._collect_uav_states()
-            try:
-                new_events = self.physics_processor.update_positions(
-                    uav_states=uav_states,
-                    delta_time_s=delta_time_s,
-                    environment=self.environment,
-                )
-            except Exception as exc:
-                new_events = [
-                    self._build_error_event("PhysicsProcessor", exc)
-                ]
-            self._handle_physics_events(new_events)
+            new_events = self._update_physics_processor(
+                uav_states,
+                delta_time_s,
+            )
+            new_events.extend(self._handle_physics_events(new_events))
             self._stamp_events(new_events, timestamp_ms)
             self.pending_events.extend(new_events)
             self._sync_uav_states(uav_states)
             threat_events = self._update_threat_detectors(uav_states)
             self._stamp_events(threat_events, timestamp_ms)
             self.pending_events.extend(threat_events)
-            telemetry_packets = [
-                self._build_telemetry_packet(state, timestamp_ms)
-                for state in uav_states.values()
-            ]
+            telemetry_packets = self._build_telemetry_packets(
+                uav_states,
+                timestamp_ms,
+            )
             should_flush_logger = self.current_tick % 10 == 0
             should_complete_mission = self._should_complete_mission()
             events_to_log = [event.copy() for event in self.pending_events]
@@ -404,6 +403,13 @@ class SimulationEngine:
         self._safe_dispatch_messages()
         if should_flush_logger:
             self._flush_data_logger()
+        tick_duration_ms = (time.perf_counter() - tick_started) * 1000.0
+        with self._lock:
+            self.last_tick_duration_ms = tick_duration_ms
+            self.max_tick_duration_ms = max(
+                self.max_tick_duration_ms,
+                tick_duration_ms,
+            )
         if should_complete_mission:
             self.complete_mission()
         return returned_world_state
@@ -498,19 +504,66 @@ class SimulationEngine:
             )
         self._set_agent_mode(agent, "PATROL")
 
-    def _handle_physics_events(self, events: list[SimEvent]) -> None:
-        """Apply engine-side reactions to physics events."""
-        for event in events:
-            if event.event_type != GEOFENCE_VIOLATION_EVENT:
-                continue
-            if event.uav_id is None:
-                continue
+    def _update_physics_processor(
+        self,
+        uav_states: dict[int, UAVState],
+        delta_time_s: float,
+    ) -> list[SimEvent]:
+        """Advance physics without letting processor failures stop the tick."""
+        try:
+            update_positions = getattr(
+                self.physics_processor,
+                "update_positions",
+                None,
+            )
+            if not callable(update_positions):
+                update_positions = getattr(
+                    self.physics_processor,
+                    "updatePositions",
+                    None,
+                )
+            if not callable(update_positions):
+                raise AttributeError(
+                    "PhysicsProcessor must expose update_positions"
+                )
 
-            agent = self.uav_registry.get(event.uav_id)
-            if agent is None:
-                continue
-            self._trigger_hover(agent, "geofence violation")
-            event.details["action"] = "HOVER"
+            result = update_positions(
+                uav_states=uav_states,
+                delta_time_s=delta_time_s,
+                environment=self.environment,
+            )
+            if result is None:
+                return []
+            if isinstance(result, SimEvent):
+                return [result]
+            return list(result)
+        except Exception as exc:
+            return [self._build_error_event("PhysicsProcessor", exc)]
+
+    def _handle_physics_events(self, events: list[SimEvent]) -> list[SimEvent]:
+        """Apply engine-side reactions to physics events."""
+        recovery_events: list[SimEvent] = []
+        for event in events:
+            try:
+                if event.event_type != GEOFENCE_VIOLATION_EVENT:
+                    continue
+                if event.uav_id is None:
+                    continue
+
+                agent = self.uav_registry.get(event.uav_id)
+                if agent is None:
+                    continue
+                self._trigger_hover(agent, "geofence violation")
+                event.details["action"] = "HOVER"
+            except Exception as exc:
+                recovery_events.append(
+                    self._build_error_event(
+                        "PhysicsProcessor.recovery",
+                        exc,
+                        uav_id=event.uav_id,
+                    )
+                )
+        return recovery_events
 
     def _trigger_hover(self, agent: object, reason: str) -> None:
         """Move a UAV into hover using local or branch-specific hooks."""
@@ -527,16 +580,19 @@ class SimulationEngine:
     ) -> list[SimEvent]:
         """Run registered or agent-attached ThreatDetector objects."""
         events: list[SimEvent] = []
-        sim_objects = self._build_threat_detector_objects()
-        detectors = self._collect_threat_detectors()
+        try:
+            sim_objects = self._build_threat_detector_objects()
+            detectors = self._collect_threat_detectors()
+        except Exception as exc:
+            return [self._build_error_event("ThreatDetector.discovery", exc)]
 
         for uav_id, detector in detectors.items():
-            state = uav_states.get(uav_id)
-            update_method = getattr(detector, "update", None)
-            if state is None or not callable(update_method):
-                continue
-
             try:
+                state = uav_states.get(uav_id)
+                update_method = getattr(detector, "update", None)
+                if state is None or not callable(update_method):
+                    continue
+
                 result = update_method(state.position.copy(), sim_objects)
                 events.extend(self._coerce_detector_events(result, uav_id))
             except Exception as exc:
@@ -553,27 +609,41 @@ class SimulationEngine:
     def _collect_threat_detectors(self) -> dict[int, object]:
         """Return explicitly registered and agent-attached threat detectors."""
         detectors = dict(self._threat_detectors)
-        for uav_id, agent in self.uav_registry.items():
-            for attr_name in ("threat_detector", "threatDetector", "detector"):
-                detector = getattr(agent, attr_name, None)
-                if detector is not None:
-                    detectors.setdefault(uav_id, detector)
-                    break
+        for uav_id, agent in list(self.uav_registry.items()):
+            try:
+                for attr_name in ("threat_detector", "threatDetector", "detector"):
+                    detector = getattr(agent, attr_name, None)
+                    if detector is not None:
+                        detectors.setdefault(uav_id, detector)
+                        break
+            except Exception as exc:
+                self._record_event(
+                    self._build_error_event(
+                        "ThreatDetector.discovery",
+                        exc,
+                        uav_id=uav_id,
+                    )
+                )
         return detectors
 
     def _build_threat_detector_objects(self) -> list[dict[str, object]]:
         """Convert SimObject models to the dict shape used by ThreatDetector."""
         objects: list[dict[str, object]] = []
-        for sim_object in self.environment.sim_objects.values():
-            payload = {
-                "id": sim_object.object_id,
-                "lat": sim_object.position.latitude,
-                "lon": sim_object.position.longitude,
-                "alt": sim_object.position.altitude,
-                "radius_m": sim_object.radius_m,
-            }
-            payload.update(sim_object.metadata)
-            objects.append(payload)
+        for sim_object in list(self.environment.sim_objects.values()):
+            try:
+                payload = {
+                    "id": sim_object.object_id,
+                    "lat": sim_object.position.latitude,
+                    "lon": sim_object.position.longitude,
+                    "alt": sim_object.position.altitude,
+                    "radius_m": sim_object.radius_m,
+                }
+                payload.update(sim_object.metadata)
+                objects.append(payload)
+            except Exception as exc:
+                self._record_event(
+                    self._build_error_event("EnvironmentModel.sim_objects", exc)
+                )
         return objects
 
     def _coerce_detector_events(
@@ -609,10 +679,20 @@ class SimulationEngine:
             return False
         if not self.uav_registry:
             return False
-        return all(
-            self._agent_route_complete(agent)
-            for agent in self.uav_registry.values()
-        )
+        for agent in list(self.uav_registry.values()):
+            try:
+                if not self._agent_route_complete(agent):
+                    return False
+            except Exception as exc:
+                self._record_event(
+                    self._build_error_event(
+                        "MissionCompletion",
+                        exc,
+                        uav_id=self._safe_agent_id(agent),
+                    )
+                )
+                return False
+        return True
 
     def _agent_route_complete(self, agent: object) -> bool:
         """Infer whether an agent has completed all mission waypoints."""
@@ -732,7 +812,12 @@ class SimulationEngine:
         if not telemetry_packets:
             return
 
-        logger = self._get_data_logger()
+        try:
+            logger = self._get_data_logger()
+        except Exception as exc:
+            self._data_logger_available = False
+            self._record_event(self._build_error_event("DataLogger.resolve", exc))
+            return
         if logger is None:
             return
 
@@ -746,7 +831,7 @@ class SimulationEngine:
             try:
                 log_method(packet)
             except Exception as exc:
-                self._record_event(
+                self._record_and_log_event(
                     self._build_error_event("DataLogger.telemetry", exc)
                 )
 
@@ -758,7 +843,12 @@ class SimulationEngine:
         if not events:
             return
 
-        logger = self._get_data_logger()
+        try:
+            logger = self._get_data_logger()
+        except Exception as exc:
+            self._data_logger_available = False
+            self._record_event(self._build_error_event("DataLogger.resolve", exc))
+            return
         if logger is None:
             return
 
@@ -808,7 +898,10 @@ class SimulationEngine:
         if callable(flush):
             try:
                 flush()
-            except Exception:
+            except Exception as exc:
+                self._record_event(
+                    self._build_error_event("DataLogger.flush", exc)
+                )
                 return
 
     def _record_event(self, event: SimEvent) -> SimEvent:
@@ -825,7 +918,10 @@ class SimulationEngine:
     def _record_and_log_event(self, event: SimEvent) -> SimEvent:
         """Record an event and immediately send it to the logger."""
         recorded_event = self._record_event(event)
-        self._log_events([recorded_event.copy()])
+        try:
+            self._log_events([recorded_event.copy()])
+        except Exception:
+            return recorded_event
         return recorded_event
 
     def _build_error_event(
@@ -887,47 +983,91 @@ class SimulationEngine:
         """Normalize registered agents into internal UAVState objects."""
         collected_states: dict[int, UAVState] = {}
 
-        for uav_id, agent in self.uav_registry.items():
+        for uav_id, agent in list(self.uav_registry.items()):
             previous_state = None
             if self._last_world_state is not None:
                 previous_state = self._last_world_state.uav_states.get(uav_id)
 
-            position = self._read_coordinate(getattr(agent, "position", None))
-            velocity = self._read_vector(getattr(agent, "velocity", None))
-            heading = float(getattr(agent, "heading", 0.0))
-            battery_level = self._read_battery_level(agent)
-            flight_mode = _enum_or_value(
-                getattr(agent, "flight_mode", None),
-                "PATROL",
-            )
-            system_status = _enum_or_value(
-                getattr(agent, "system_status", None),
-                "ACTIVE",
-            )
-            last_valid_position = (
-                previous_state.last_valid_position.copy()
-                if previous_state is not None
-                else position.copy()
-            )
+            try:
+                position = self._read_coordinate(getattr(agent, "position", None))
+                velocity = self._read_vector(getattr(agent, "velocity", None))
+                heading = float(getattr(agent, "heading", 0.0))
+                battery_level = self._read_battery_level(agent)
+                flight_mode = _enum_or_value(
+                    getattr(agent, "flight_mode", None),
+                    "PATROL",
+                )
+                system_status = _enum_or_value(
+                    getattr(agent, "system_status", None),
+                    "ACTIVE",
+                )
+                last_valid_position = (
+                    previous_state.last_valid_position.copy()
+                    if previous_state is not None
+                    else position.copy()
+                )
 
-            collected_states[uav_id] = UAVState(
-                uav_id=uav_id,
-                position=position,
-                velocity=velocity,
-                heading=heading,
-                battery_level=battery_level,
-                flight_mode=flight_mode,
-                system_status=system_status,
-                last_valid_position=last_valid_position,
-            )
+                collected_states[uav_id] = UAVState(
+                    uav_id=uav_id,
+                    position=position,
+                    velocity=velocity,
+                    heading=heading,
+                    battery_level=battery_level,
+                    flight_mode=flight_mode,
+                    system_status=system_status,
+                    last_valid_position=last_valid_position,
+                )
+            except Exception as exc:
+                if previous_state is not None:
+                    collected_states[uav_id] = previous_state.copy()
+                self._record_event(
+                    self._build_error_event(
+                        "UAVStateCollector",
+                        exc,
+                        uav_id=uav_id,
+                    )
+                )
 
         return collected_states
 
     def _sync_uav_states(self, uav_states: dict[int, UAVState]) -> None:
         """Write updated states back to registered agent objects."""
         for uav_id, state in uav_states.items():
-            agent = self.uav_registry[uav_id]
-            self._write_back_state(agent, state)
+            agent = self.uav_registry.get(uav_id)
+            if agent is None:
+                continue
+            try:
+                self._write_back_state(agent, state)
+            except Exception as exc:
+                self._record_event(
+                    self._build_error_event(
+                        "UAVStateSync",
+                        exc,
+                        uav_id=uav_id,
+                    )
+                )
+
+    def _build_telemetry_packets(
+        self,
+        uav_states: dict[int, UAVState],
+        timestamp_ms: int,
+    ) -> list[object]:
+        """Build telemetry packets per UAV without dropping the whole tick."""
+        telemetry_packets: list[object] = []
+        for state in uav_states.values():
+            try:
+                telemetry_packets.append(
+                    self._build_telemetry_packet(state, timestamp_ms)
+                )
+            except Exception as exc:
+                self._record_event(
+                    self._build_error_event(
+                        "TelemetryBuilder",
+                        exc,
+                        uav_id=state.uav_id,
+                    )
+                )
+        return telemetry_packets
 
     def _stamp_events(self, events: list[SimEvent], timestamp_ms: int) -> None:
         """Attach tick metadata to generated events."""
@@ -967,7 +1107,7 @@ class SimulationEngine:
         """Best-effort integer UAV id extraction for error events."""
         try:
             return SimulationEngine._normalize_uav_id(agent)
-        except (AttributeError, ValueError):
+        except Exception:
             return None
 
     @staticmethod

@@ -1,0 +1,148 @@
+{
+  "mission_id": "mission_demo",
+  "tickIntervalMs": 80,
+  "maxTicks": 900,
+  "detectionRadius": 170.0,
+  "formationSpacing": 18.0,
+  "logs": {
+    "flight": "logs/demo_flight_log.csv",
+    "events": "logs/demo_event_log.jsonl"
+  },
+  "patrol_boundary": [
+    {
+      "latitude": 40.999,
+      "longitude": 28.999,
+      "altitude": 100.0
+    },
+    {
+      "latitude": 40.999,
+      "longitude": 29.001,
+      "altitude": 100.0
+    },
+    {
+      "latitude": 41.001,
+      "longitude": 29.001,
+      "altitude": 100.0
+    },
+    {
+      "latitude": 41.001,
+      "longitude": 28.999,
+      "altitude": 100.0
+    }
+  ],
+  "formationOrigin": {
+    "latitude": 40.9992,
+    "longitude": 28.9992,
+    "altitude": 100.0
+  },
+  "waypoints": [
+    {
+      "id": "wp-1",
+      "sequence": 0,
+      "coordinate": {
+        "latitude": 40.9992,
+        "longitude": 28.9992,
+        "altitude": 100.0
+      },
+      "speed_mps": 42.0
+    },
+    {
+      "id": "wp-2",
+      "sequence": 1,
+      "coordinate": {
+        "latitude": 41.0,
+        "longitude": 28.9992,
+        "altitude": 100.0
+      },
+      "speed_mps": 42.0
+    },
+    {
+      "id": "wp-3",
+      "sequence": 2,
+      "coordinate": {
+        "latitude": 41.0008,
+        "longitude": 28.9992,
+        "altitude": 100.0
+      },
+      "speed_mps": 42.0
+    },
+    {
+      "id": "wp-4",
+      "sequence": 3,
+      "coordinate": {
+        "latitude": 41.0008,
+        "longitude": 29.0,
+        "altitude": 100.0
+      },
+      "speed_mps": 42.0
+    },
+    {
+      "id": "wp-5",
+      "sequence": 4,
+      "coordinate": {
+        "latitude": 41.0008,
+        "longitude": 29.0008,
+        "altitude": 100.0
+      },
+      "speed_mps": 42.0
+    },
+    {
+      "id": "wp-6",
+      "sequence": 5,
+      "coordinate": {
+        "latitude": 41.0,
+        "longitude": 29.0008,
+        "altitude": 100.0
+      },
+      "speed_mps": 42.0
+    },
+    {
+      "id": "wp-7",
+      "sequence": 6,
+      "coordinate": {
+        "latitude": 40.9992,
+        "longitude": 29.0008,
+        "altitude": 100.0
+      },
+      "speed_mps": 42.0
+    },
+    {
+      "id": "wp-8",
+      "sequence": 7,
+      "coordinate": {
+        "latitude": 40.9992,
+        "longitude": 29.0,
+        "altitude": 100.0
+      },
+      "speed_mps": 42.0
+    }
+  ],
+  "uavs": [
+    {
+      "uav_id": 1,
+      "speed_mps": 42.0
+    },
+    {
+      "uav_id": 2,
+      "speed_mps": 42.0
+    },
+    {
+      "uav_id": 3,
+      "speed_mps": 42.0
+    }
+  ],
+  "simObjects": [
+    {
+      "object_id": "central-threat-1",
+      "position": {
+        "latitude": 41.0,
+        "longitude": 29.0,
+        "altitude": 0.0
+      },
+      "radius_m": 4.0,
+      "metadata": {
+        "type": "PERSON"
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 build/
 install/
 log/
+logs/
 *.pyc
 __pycache__/
 .vscode/
