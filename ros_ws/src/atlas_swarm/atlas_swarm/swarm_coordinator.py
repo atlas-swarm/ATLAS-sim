@@ -1,9 +1,9 @@
 """Swarm-level coordination: zone assignment, formation changes, UAV loss handling.
 
 Hafta 4 değişiklikleri (4.2.3):
-  - handle_uav_lost() artık demo'da izlenebilir log çıktısı üretir.
-  - redistribute_zones() sonrası her kalan UAV'a yeni zone waypoint'leri gönderilir.
-  - battery=0 simülasyonu için simulate_uav_loss() yardımcı metodu eklendi.
+  - simulate_uav_loss(): battery=0 set eder, EmergencyHandler callback'ini bağlar.
+  - handle_uav_lost(): demo'da izlenebilir adım adım log üretir.
+  - redistribute_zones(): kalan UAV'lara yeni zone merkezini waypoint olarak gönderir.
 """
 
 from __future__ import annotations
@@ -41,10 +41,6 @@ class SwarmCoordinator:
             MessageType.OPERATOR_COMMAND, self.handle_operator_command
         )
 
-    # ------------------------------------------------------------------ #
-    #  Zone yönetimi                                                       #
-    # ------------------------------------------------------------------ #
-
     def assign_zones(self, agents: list[UAVAgent], boundary: list[GeoCoordinate]) -> None:
         self._agents = agents
         if not agents or not boundary:
@@ -56,11 +52,11 @@ class SwarmCoordinator:
         n = len(agents)
         lon_step = (max_lon - min_lon) / n
         self.coverage_zones = []
-        for i, _ in enumerate(agents):
+        for i, agent in enumerate(agents):
             lon_start = min_lon + i * lon_step
             lon_end = lon_start + lon_step
             self.coverage_zones.append(PatrolZone(
-                assigned_uav_id=i,
+                assigned_uav_id=int(agent.uav_id),
                 boundary=[
                     GeoCoordinate(latitude=min_lat, longitude=lon_start),
                     GeoCoordinate(latitude=max_lat, longitude=lon_start),
@@ -71,10 +67,6 @@ class SwarmCoordinator:
 
     def get_coverage_map(self) -> dict[int, PatrolZone]:
         return {zone.assigned_uav_id: zone for zone in self.coverage_zones}
-
-    # ------------------------------------------------------------------ #
-    #  Tehdit yönetimi                                                     #
-    # ------------------------------------------------------------------ #
 
     def on_threat_detected(self, alert: ThreatAlert) -> None:
         self.active_alerts.append(alert)
@@ -90,53 +82,42 @@ class SwarmCoordinator:
     # ------------------------------------------------------------------ #
 
     def simulate_uav_loss(self, uav_id: str) -> None:
-        """Demo'da bir UAV'ı devre dışı bırakır: battery=0 set edilir.
-
-        Bu metod demo script'inden çağrılır. EmergencyHandler'ın
-        recommend_mode() bir sonraki tick'te FlightMode.LAND döndürür
-        ve on_uav_lost callback'i handle_uav_lost()'u tetikler.
-        """
+        """Demo'da bir UAV'ı devre dışı bırakır: battery=0 set edilir."""
         for agent in self._agents:
             if agent.uav_id == uav_id:
                 agent.battery_pct = 0.0
                 if agent.emergency.on_uav_lost is None:
                     agent.emergency.on_uav_lost = self.handle_uav_lost
-                _log(f"[SwarmCoordinator] UAV {uav_id} battery set to 0 → loss simulated")
+                _log(f"[SwarmCoordinator] UAV {uav_id} battery=0 → loss simulated")
                 return
-        _log(f"[SwarmCoordinator] simulate_uav_loss: UAV {uav_id} not found in swarm")
+        _log(f"[SwarmCoordinator] simulate_uav_loss: UAV {uav_id} not found")
 
     def handle_uav_lost(self, uav_id: str) -> None:
         """EmergencyHandler callback'i tarafından çağrılır."""
         _log(f"[SwarmCoordinator] *** UAV LOST: {uav_id} ***")
-        _log(f"[SwarmCoordinator] Active agents before: {[a.uav_id for a in self._agents]}")
-
+        _log(f"[SwarmCoordinator] Active before: {[a.uav_id for a in self._agents]}")
         self._agents = [a for a in self._agents if a.uav_id != uav_id]
-
-        _log(f"[SwarmCoordinator] Active agents after:  {[a.uav_id for a in self._agents]}")
-
+        _log(f"[SwarmCoordinator] Active after:  {[a.uav_id for a in self._agents]}")
         try:
-            int_id = int(uav_id)
+            self.redistribute_zones(int(uav_id))
         except (ValueError, TypeError):
-            _log(f"[SwarmCoordinator] Cannot parse uav_id={uav_id!r} as int, skip redistribution")
-            return
-
-        self.redistribute_zones(int_id)
+            _log(f"[SwarmCoordinator] Cannot parse uav_id={uav_id!r}, skip redistribution")
 
     def redistribute_zones(self, failed_uav_id: int) -> None:
         """Redistribute patrol zones after a UAV is lost."""
-        _log(f"[SwarmCoordinator] Redistributing zones (failed UAV: {failed_uav_id})")
+        _log(f"[SwarmCoordinator] Redistributing zones (failed: UAV {failed_uav_id})")
 
         failed_zone = next(
             (z for z in self.coverage_zones if z.assigned_uav_id == failed_uav_id), None
         )
         if failed_zone is None:
-            _log(f"[SwarmCoordinator] No zone found for UAV {failed_uav_id}, nothing to redistribute")
+            _log(f"[SwarmCoordinator] No zone for UAV {failed_uav_id}, nothing to do")
             return
 
         remaining = [z for z in self.coverage_zones if z.assigned_uav_id != failed_uav_id]
         if not remaining:
             self.coverage_zones = []
-            _log("[SwarmCoordinator] No remaining UAVs — swarm coverage cleared")
+            _log("[SwarmCoordinator] No remaining UAVs — coverage cleared")
             return
 
         all_lons = [pt.longitude for zone in [failed_zone, *remaining] for pt in zone.boundary]
@@ -157,20 +138,16 @@ class SwarmCoordinator:
             ]
             center_lat = (min_lat + max_lat) / 2
             center_lon = (lon_start + lon_end) / 2
-            _log(
-                f"[SwarmCoordinator]   UAV {zone.assigned_uav_id} → "
-                f"new zone center ({center_lat:.6f}, {center_lon:.6f})"
-            )
+            _log(f"[SwarmCoordinator]   UAV {zone.assigned_uav_id} → center ({center_lat:.6f}, {center_lon:.6f})")
 
         self.coverage_zones = remaining
         self._dispatch_zone_waypoints(remaining)
-
         self.broadcast_to_swarm(SwarmMessage(
             sender_id=-1,
             type=SwarmMessageType.ZONE_UPDATE,
             payload={"reason": f"UAV {failed_uav_id} lost", "remaining": n},
         ))
-        _log(f"[SwarmCoordinator] Zone redistribution complete — {n} UAV(s) active")
+        _log(f"[SwarmCoordinator] Redistribution done — {n} UAV(s) active")
 
     def _dispatch_zone_waypoints(self, zones: list[PatrolZone]) -> None:
         """Send each remaining agent to the centre of its new patrol zone."""
@@ -192,22 +169,11 @@ class SwarmCoordinator:
             )
             cmd = UAVCommand(
                 type=UAVCommandType.NAVIGATE,
-                payload={
-                    "waypoints": [
-                        Waypoint(coordinate=center, altitude=agent.position.altitude)
-                    ]
-                },
+                payload={"waypoints": [Waypoint(coordinate=center, altitude=agent.position.altitude)]},
                 target_uav_id=agent.uav_id,
             )
             agent.receive_command(cmd)
-            _log(
-                f"[SwarmCoordinator]   Sent NAVIGATE to UAV {agent.uav_id} "
-                f"→ ({center.latitude:.6f}, {center.longitude:.6f})"
-            )
-
-    # ------------------------------------------------------------------ #
-    #  Broadcast & komut yönetimi                                         #
-    # ------------------------------------------------------------------ #
+            _log(f"[SwarmCoordinator]   NAVIGATE → UAV {agent.uav_id} ({center.latitude:.6f}, {center.longitude:.6f})")
 
     def map_swarm_to_uav_command(self, msg: SwarmMessage) -> UAVCommand:
         _MAP: dict[SwarmMessageType, UAVCommandType] = {
@@ -272,6 +238,5 @@ class SwarmCoordinator:
 
 
 def _log(msg: str) -> None:
-    """Timestamp'li console log — demo sırasında izlenebilirlik için."""
     ts = time.strftime("%H:%M:%S")
     print(f"[{ts}] {msg}", flush=True)

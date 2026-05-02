@@ -1,9 +1,9 @@
 """Detects proximity threats and delegates to the configured avoidance strategy.
 
 Hafta 4 düzeltmesi (4.2.2):
-- safetyRadius (safe_distance_m) demo'ya göre ayarlandı: 15.0 m
-- En yakın tehdit önceliklidir; birden fazla obstacle varsa en yakını seçilir.
-- Obstacle kümesi boşsa erken çıkış yapılır (performans).
+- safe_distance_m = 9.0 m (mission_demo.json formationSpacing=18.0 m yarısı)
+- En yakın tehdit önceliklidir.
+- Obstacle kümesi boşsa erken çıkış.
 """
 
 from __future__ import annotations
@@ -14,10 +14,7 @@ from atlas_common.vector3d import Vector3D
 from atlas_uav.strategy.i_avoidance_strategy import IAvoidanceStrategy
 
 _METRES_PER_DEG: float = 111_320.0
-
-# Demo için ayarlanan güvenli mesafe (metre).
-# 3 UAV'ın V_SHAPE'de 30 m aralıkla uçtuğu senaryoda 15 m makul bir eşik.
-_DEFAULT_SAFE_DISTANCE_M: float = 15.0
+_DEFAULT_SAFE_DISTANCE_M: float = 9.0
 
 
 @dataclass
@@ -26,9 +23,8 @@ class CollisionAvoider:
 
     Öncelik mantığı (4.2.2):
     1. Tehdit varsa → strateji compute_avoidance_vector çağırır.
-    2. Dönen vektör NavigationController'a iletilir (set_avoidance_correction).
-    3. NavigationController bu vektörü waypoint yönüyle BLEND eder —
-       UAV hem kaçar hem de rotayı hatırlar.
+    2. Dönen vektör NavigationController.set_avoidance_correction() ile iletilir.
+    3. NavigationController waypoint yönüyle blend eder.
     """
 
     uav_id: str
@@ -41,11 +37,7 @@ class CollisionAvoider:
         velocity: Vector3D,
         obstacles: list[GeoCoordinate],
     ) -> Vector3D | None:
-        """Return a corrective vector if any obstacle is a threat, else None.
-
-        En yakın tehdide göre tek bir avoidance vektörü üretilir.
-        Birden fazla obstacle tehdidi varsa en yakını önceliklidir.
-        """
+        """Return a corrective vector for the closest threat, else None."""
         if not obstacles:
             return None
 
