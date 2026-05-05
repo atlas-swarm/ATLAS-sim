@@ -142,11 +142,10 @@ class CommandCenterInterface:
         # Log the override as an incident
         try:
             from atlas_data import DataLogger
-            from atlas_common import IncidentType
             
             logger = DataLogger.get_instance()
             logger.log_incident(
-                incident_type=IncidentType.GEOFENCE_VIOLATION,  # Representative type for override
+                incident_type="OPERATOR_OVERRIDE",
                 uav_id="OPERATOR",
                 details=f"Operator override command issued: {payload}",
             )

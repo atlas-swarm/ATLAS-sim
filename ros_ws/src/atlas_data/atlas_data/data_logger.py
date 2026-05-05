@@ -153,6 +153,15 @@ class DataLogger:
                     "longitude": threat_coords.longitude,
                     "altitude": threat_coords.altitude,
                 }
+
+        detection_position = data.get("detection_position")
+        if detection_position and not isinstance(detection_position, dict):
+            if hasattr(detection_position, "latitude"):
+                data["detection_position"] = {
+                    "latitude": detection_position.latitude,
+                    "longitude": detection_position.longitude,
+                    "altitude": detection_position.altitude,
+                }
         
         record = {
             "event_type": "threat_event",
@@ -164,6 +173,8 @@ class DataLogger:
             "confidence_score": data.get("confidence_score"),
             "is_acknowledged": data.get("is_acknowledged", False),
         }
+        if data.get("detection_position") is not None:
+            record["detection_position"] = data.get("detection_position")
         self.event_buffer.append(record)
         self._maybe_flush()
 
