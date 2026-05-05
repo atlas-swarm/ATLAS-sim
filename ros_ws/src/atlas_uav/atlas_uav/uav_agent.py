@@ -68,33 +68,27 @@ class UAVAgent:
         # Lazy imports keep atlas_communication failures isolated to call time.
         from atlas_communication.communication_bus import (
             CommunicationBus,
-            Message,
             MessageType,
         )
-        from atlas_communication.telemetry_packet import (
-            FlightMode as CommFlightMode,
-            GeoCoordinate as CommGeo,
-            TelemetryPacket,
-            Vector3D as CommVec,
-        )
+        from atlas_communication.telemetry_packet import TelemetryPacket
 
         packet = TelemetryPacket(
             uav_id=int(self.uav_id),
-            position=CommGeo(
-                lat=self.position.latitude,
-                lon=self.position.longitude,
-                alt=self.position.altitude,
+            position=GeoCoordinate(
+                latitude=self.position.latitude,
+                longitude=self.position.longitude,
+                altitude=self.position.altitude,
             ),
-            velocity=CommVec(
+            velocity=Vector3D(
                 x=self.velocity.x,
                 y=self.velocity.y,
                 z=self.velocity.z,
             ),
             battery_level=self.battery_pct / 100.0,
-            flight_mode=CommFlightMode(self.flight_mode.value),
+            flight_mode=FlightMode(self.flight_mode.value),
             timestamp=int(time.time()),
         )
-        CommunicationBus.get_instance().publish(Message(MessageType.TELEMETRY, packet))
+        CommunicationBus.get_instance().publish(MessageType.TELEMETRY, packet)
 
     def receive_command(self, cmd: UAVCommand) -> None:
         """Handle an incoming UAVCommand: NAVIGATE, SET_MODE, or EMERGENCY."""
@@ -104,7 +98,7 @@ class UAVAgent:
         if cmd.type == UAVCommandType.NAVIGATE:
             waypoints = cmd.payload.get("waypoints", [])
             self.navigation.load_route(waypoints)
-            self.mission_status = MissionStatus.ACTIVE
+            self.mission_status = MissionStatus.RUNNING
             self.flight_mode = FlightMode.PATROL
         elif cmd.type == UAVCommandType.SET_MODE:
             self.flight_mode = FlightMode(cmd.payload["mode"])
