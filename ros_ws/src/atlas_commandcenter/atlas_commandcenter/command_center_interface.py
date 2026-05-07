@@ -27,6 +27,7 @@ class CommandCenterInterface:
     mission_controller: MissionController = field(default_factory=MissionController)
     alert_display: AlertDisplay = field(default_factory=AlertDisplay)
     telemetry_feed: list[Any] = field(default_factory=list)  # TelemetryPacket objects
+    last_world_state: Any = None
     is_connected: bool = False
 
     @classmethod
@@ -171,5 +172,4 @@ class CommandCenterInterface:
         Internal callback for world state messages.
         Can be extended for world state processing.
         """
-        # Placeholder for world state handling
-        pass
+        self.last_world_state = state
