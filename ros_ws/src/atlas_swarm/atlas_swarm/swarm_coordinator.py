@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from atlas_common.geo_coordinate import GeoCoordinate
 from atlas_swarm.formation_manager import FormationManager
-from atlas_swarm.models import PatrolZone, SwarmMessage
+from atlas_swarm.models import PatrolZone, SwarmMessage, UAVCommand, UAVCommandType
 from atlas_threat.threat_alert import ThreatAlert
 
 if TYPE_CHECKING:
@@ -125,4 +125,52 @@ class SwarmCoordinator:
         from atlas_common import MessageType
 
         CommunicationBus.get_instance().publish(MessageType.SWARM_COMMAND, msg)
+
+    def handle_swarm_command(
+        self,
+        payload: dict,
+        agents: list[UAVAgent] | None = None,
+    ) -> None:
+        """Adapt command-center SWARM_COMMAND payloads into UAVCommand objects."""
+        if agents is None:
+            return
+
+        command_name = str(payload.get("command", "")).upper()
+        target = payload.get("target", "ALL")
+
+        if command_name == "NAVIGATE":
+            command = UAVCommand(
+                type=UAVCommandType.NAVIGATE,
+                payload={
+                    "waypoints": [payload["waypoint"]] if payload.get("waypoint") is not None else [],
+                    "waypoint_index": payload.get("waypoint_index"),
+                },
+            )
+        elif command_name == "HOVER":
+            command = UAVCommand(
+                type=UAVCommandType.SET_MODE,
+                payload={"mode": "HOVER"},
+            )
+        elif command_name == "CONTINUE":
+            command = UAVCommand(
+                type=UAVCommandType.SET_MODE,
+                payload={"mode": "PATROL"},
+            )
+        elif command_name == "RTL":
+            command = UAVCommand(
+                type=UAVCommandType.SET_MODE,
+                payload={"mode": "RTL"},
+            )
+        else:
+            return
+
+        if target == "ALL":
+            selected_agents = agents
+        elif isinstance(target, list):
+            selected_agents = [agent for agent in agents if str(agent.uav_id) in {str(item) for item in target}]
+        else:
+            selected_agents = [agent for agent in agents if str(agent.uav_id) == str(target)]
+
+        for agent in selected_agents:
+            agent.receive_command(command)
 
