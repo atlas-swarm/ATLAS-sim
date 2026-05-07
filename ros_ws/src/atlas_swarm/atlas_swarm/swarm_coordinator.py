@@ -14,8 +14,7 @@ if TYPE_CHECKING:
     from atlas_uav.uav_agent import UAVAgent
 
 
-@dataclassocity=Vector3D(
-
+@dataclass
 class SwarmCoordinator:
     """Manages zone coverage, threat responses, and formation coordination."""
 
@@ -122,7 +121,8 @@ class SwarmCoordinator:
 
     def broadcast_to_swarm(self, msg: SwarmMessage) -> None:
         """Publish *msg* to all swarm members via CommunicationBus as SWARM_COMMAND."""
-        from atlas_communication.communication_bus import CommunicationBus, MessageType
+        from atlas_communication.communication_bus import CommunicationBus
+        from atlas_common import MessageType
 
         CommunicationBus.get_instance().publish(MessageType.SWARM_COMMAND, msg)
-        
+
