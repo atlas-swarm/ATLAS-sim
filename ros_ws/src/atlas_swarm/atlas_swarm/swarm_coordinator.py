@@ -21,6 +21,8 @@ class SwarmCoordinator:
     formation_manager: FormationManager = field(default_factory=FormationManager)
     coverage_zones: list[PatrolZone] = field(default_factory=list)
     active_alerts: list[ThreatAlert] = field(default_factory=list)
+    _bound_command_bus: object | None = field(default=None, init=False, repr=False)
+    _bound_command_listener: object | None = field(default=None, init=False, repr=False)
 
     # ------------------------------------------------------------------ #
     #  Zone assignment                                                     #
@@ -173,4 +175,31 @@ class SwarmCoordinator:
 
         for agent in selected_agents:
             agent.receive_command(command)
+
+    def bind_command_bus(self, bus=None, agents: list[UAVAgent] | None = None) -> None:
+        """Bind SWARM_COMMAND bus payloads to the local swarm-command adapter."""
+        from atlas_communication.communication_bus import CommunicationBus
+        from atlas_common import MessageType
+
+        if bus is None:
+            bus = CommunicationBus.get_instance()
+
+        if self._bound_command_bus is bus and self._bound_command_listener is not None:
+            return
+
+        def _listener(payload: dict) -> None:
+            self.handle_swarm_command(payload, agents)
+
+        if self._bound_command_bus is not None and self._bound_command_listener is not None:
+            try:
+                self._bound_command_bus.unsubscribe(
+                    MessageType.SWARM_COMMAND,
+                    self._bound_command_listener,
+                )
+            except Exception:
+                pass
+
+        bus.subscribe(MessageType.SWARM_COMMAND, _listener)
+        self._bound_command_bus = bus
+        self._bound_command_listener = _listener
 
