@@ -16,7 +16,14 @@ class NavigationController:
 
     def load_route(self, waypoints: list[Waypoint]) -> None:
         """Replace the current route and reset progress."""
-        self.waypoints = sorted(waypoints, key=lambda wp: wp.sequence)
+        indexed_waypoints = list(enumerate(waypoints))
+        self.waypoints = [
+            waypoint
+            for _, waypoint in sorted(
+                indexed_waypoints,
+                key=lambda item: self._waypoint_sort_key(item[1], item[0]),
+            )
+        ]
         self._current_index = 0
 
     def current_waypoint(self) -> Waypoint | None:
@@ -37,8 +44,33 @@ class NavigationController:
         wp = self.current_waypoint()
         if wp is None:
             return False
-        dlat = position.latitude - wp.position.latitude
-        dlon = position.longitude - wp.position.longitude
+        waypoint_position = self._waypoint_position(wp)
+        dlat = position.latitude - waypoint_position.latitude
+        dlon = position.longitude - waypoint_position.longitude
         # Rough metre approximation (1 deg lat ≈ 111 320 m)
         dist = ((dlat * 111_320) ** 2 + (dlon * 111_320) ** 2) ** 0.5
         return dist <= threshold_m
+
+    @staticmethod
+    def _waypoint_position(waypoint: Waypoint) -> GeoCoordinate:
+        """Return waypoint position using shared or legacy field names."""
+        if hasattr(waypoint, "coordinate"):
+            return waypoint.coordinate
+        if hasattr(waypoint, "position"):
+            return waypoint.position
+        raise AttributeError("Waypoint must expose either 'coordinate' or 'position'")
+
+    @staticmethod
+    def _waypoint_sort_key(waypoint: Waypoint, fallback_index: int) -> tuple[int, int | str]:
+        """Sort by waypoint_id when numeric, else sequence, else preserve input order."""
+        waypoint_id = getattr(waypoint, "waypoint_id", None)
+        if waypoint_id not in (None, ""):
+            try:
+                return (0, int(waypoint_id))
+            except (TypeError, ValueError):
+                return (1, str(waypoint_id))
+
+        if hasattr(waypoint, "sequence"):
+            return (2, getattr(waypoint, "sequence"))
+
+        return (3, fallback_index)
