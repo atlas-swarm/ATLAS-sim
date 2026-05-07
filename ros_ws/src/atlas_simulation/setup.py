@@ -22,5 +22,9 @@ setup(
     description="Core simulation engine package for the ATLAS project.",
     license="MIT",
     extras_require={"test": ["pytest"]},
-    entry_points={"console_scripts": []},
+    entry_points={
+        "console_scripts": [
+            "atlas_demo = atlas_simulation.demo_runner:main",
+        ]
+    },
 )
