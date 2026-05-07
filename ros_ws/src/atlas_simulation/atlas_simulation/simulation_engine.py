@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import threading
 import time
 
+from atlas_common import MessageType
+from atlas_communication.communication_bus import CommunicationBus
 from atlas_simulation.environment_model import EnvironmentModel
 from atlas_simulation.models import (
     GeoCoordinate,
@@ -205,7 +207,13 @@ class SimulationEngine:
             returned_world_state = world_state.copy()
 
         publish_world_state(published_world_state)
+        self._publish_world_state_to_bus(published_world_state)
         return returned_world_state
+
+    def _publish_world_state_to_bus(self, world_state: WorldState) -> None:
+        """Publish world-state snapshots to CommunicationBus."""
+        CommunicationBus.get_instance().publish(MessageType.WORLD_STATE, world_state)
+        CommunicationBus.get_instance().dispatch()
 
     def _run_loop(self) -> None:
         """Run the background tick loop until stop is requested."""
