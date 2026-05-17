@@ -7,8 +7,8 @@ import inspect
 import threading
 import time
 
-from atlas_simulation.environment_model import EnvironmentModel
-from atlas_simulation.models import (
+from environment_model import EnvironmentModel
+from models import (
     GeoCoordinate,
     SimConfig,
     SimEvent,
@@ -16,13 +16,22 @@ from atlas_simulation.models import (
     Vector3D,
     WorldState,
 )
-from atlas_simulation.physics_processor import PhysicsProcessor
-from atlas_simulation.publisher_adapter import (
+from physics_processor import PhysicsProcessor
+from publisher_adapter import (
     dispatch_messages,
     publish_emergency_event,
     publish_telemetry,
     publish_world_state,
 )
+
+try:
+    from yolo_detector import YoloDetector, adapt_camera_frame
+    from aruco_identifier import ArucoIdentifier
+    from vision_threat_assessor import assess_detection
+    from vision_bridge import VisionBridge
+    _VISION_AVAILABLE = True
+except ImportError:
+    _VISION_AVAILABLE = False
 
 
 MISSION_START_EVENT = "MISSION_START"
@@ -71,7 +80,11 @@ class SimulationEngine:
     _instance: "SimulationEngine | None" = None
     _instance_lock = threading.Lock()
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        enable_vision: bool = False,
+        communication_bus: object | None = None,
+    ) -> None:
         self.current_tick = 0
         self.tick_interval_ms = 100
         self.is_running = False
@@ -88,6 +101,17 @@ class SimulationEngine:
         self._mission_status = "IDLE"
         self._mission_waypoints: list[_MissionWaypoint] = []
         self._threat_detectors: dict[int, object] = {}
+
+        self._enable_vision = enable_vision
+        self._communication_bus = communication_bus
+        self._current_camera_frame: object | None = None
+        self._vision_zone_polygon: list[tuple[int, int]] = []
+        self._vision_track_history: dict[str, list[tuple[int, int]]] = {}
+        self._yolo: object | None = None
+        self._aruco: object | None = None
+        self._vision_bridge: object | None = None
+        if enable_vision:
+            self._setup_vision()
 
         self._initialized = False
         self._lock = threading.RLock()
@@ -147,6 +171,7 @@ class SimulationEngine:
             self._mission_status = "IDLE"
             self._mission_waypoints = []
             self._threat_detectors = {}
+            self._current_camera_frame = None
             self._loop_state.stop_event = threading.Event()
             self._initialized = True
 
@@ -406,11 +431,56 @@ class SimulationEngine:
             self._flush_data_logger()
         if should_complete_mission:
             self.complete_mission()
+        if self._enable_vision and self._current_camera_frame is not None:
+            try:
+                vision_assessments = self._run_vision_tick(
+                    self._current_camera_frame,
+                    self._vision_zone_polygon,
+                    self._vision_track_history,
+                )
+                if vision_assessments and self._vision_bridge is not None:
+                    self._vision_bridge.publish_batch(vision_assessments)
+            except Exception as exc:
+                self._record_and_log_event(
+                    self._build_error_event("VisionPipeline", exc)
+                )
         return returned_world_state
 
     def tick(self) -> WorldState:
         """Execute one simulation tick; compatibility alias for run_cycle()."""
         return self.run_cycle()
+
+    def _setup_vision(self) -> None:
+        if not _VISION_AVAILABLE:
+            return
+        self._yolo = YoloDetector()
+        self._aruco = ArucoIdentifier()
+        self._vision_bridge = VisionBridge(self._communication_bus)
+
+    def _run_vision_tick(
+        self,
+        camera_frame: object,
+        zone_polygon: list[tuple[int, int]],
+        track_history: dict,
+    ) -> list:
+        if not _VISION_AVAILABLE or self._yolo is None or self._aruco is None:
+            return []
+        frame = adapt_camera_frame(camera_frame)
+        detections = self._yolo.detect(frame)
+        markers = self._aruco.detect_markers(frame)
+        assessments = []
+        for i, detection in enumerate(detections):
+            object_id = f"vis_{self.current_tick}_{i}"
+            assessments.append(
+                assess_detection(
+                    detection=detection,
+                    markers=markers,
+                    zone_polygon=zone_polygon,
+                    track_history=track_history,
+                    object_id=object_id,
+                )
+            )
+        return assessments
 
     def _run_loop(self) -> None:
         """Run the background tick loop until stop is requested."""
