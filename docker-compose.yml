@@ -9,10 +9,25 @@ services:
     tty: true
     environment:
       - ROS_DOMAIN_ID=42
+      # Gazebo Transport discovery stability inside Docker
+      - GZ_IP=127.0.0.1
+      - GZ_PARTITION=atlas_demo
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
+      - QT_QPA_PLATFORM=xcb
+      - LIBGL_ALWAYS_SOFTWARE=1
+      - QT_OPENGL=software
+      - MESA_LOADER_DRIVER_OVERRIDE=llvmpipe
+      - GALLIUM_DRIVER=llvmpipe
+      - XDG_RUNTIME_DIR=/tmp/runtime-root
     volumes:
       - ./ros_ws:/ros_ws
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    devices:
+      - /dev/dri:/dev/dri
+    # With host networking, port mappings are ignored, but services
+    # binding to 0.0.0.0:<port> are reachable on the host directly.
+    ports:
+      - "6080:6080"
     network_mode: host
     command: bash

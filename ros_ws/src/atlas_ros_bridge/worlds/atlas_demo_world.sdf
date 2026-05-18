@@ -1,0 +1,259 @@
+<?xml version="1.0" ?>
+<sdf version="1.7">
+  <world name="atlas_demo_world">
+    <!-- Minimal, lightweight demo world for ATLAS ROS/Gazebo bridge validation.
+
+         Design goals:
+         - Visually understandable "surveillance" scene.
+         - Fixed camera publishing Gazebo image topic: /camera/image_raw
+         - No UAV physics or ATLAS core changes required.
+
+         Note: The <topic> below is a Gazebo Transport topic. `ros_gz_bridge`
+         (parameter_bridge) is used to bridge it to ROS 2 with the same name.
+    -->
+
+    <!-- Inline sun light (avoids external model://sun dependency). -->
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.1 0.1 0.1 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -1</direction>
+    </light>
+
+    <!-- Inline ground plane (avoids external model://ground_plane dependency). -->
+    <model name="ground_plane">
+      <static>true</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>200 200</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>200 200</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Gazebo Sim systems required for physics, scene updates, and sensor rendering. -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics" />
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands" />
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster" />
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <!-- Prefer Ogre1 for maximum compatibility with software rendering (llvmpipe/Xvfb). -->
+      <render_engine>ogre</render_engine>
+    </plugin>
+
+    <!-- A few simple static "vehicle-like" boxes and obstacles. -->
+    <model name="vehicle_box_1">
+      <static>true</static>
+      <pose>1.5 -0.5 0.25 0 0 0.2</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.2 0.6 0.5</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.2 0.6 0.5</size></box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.1 0.8 1</ambient>
+            <diffuse>0.1 0.1 0.8 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="vehicle_box_2">
+      <static>true</static>
+      <pose>-1.2 0.8 0.25 0 0 -0.4</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.0 0.5 0.5</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.0 0.5 0.5</size></box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.1 0.1 1</ambient>
+            <diffuse>0.8 0.1 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="obstacle_wall">
+      <static>true</static>
+      <pose>-2 -1 0.5 0 0 1.2</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>3.0 0.2 1.0</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>3.0 0.2 1.0</size></box>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.2 0.2 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Additional colorful demo props to make the camera feed presentation-friendly. -->
+    <model name="truck_box_1">
+      <static>true</static>
+      <pose>0.3 1.8 0.35 0 0 1.1</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>2.2 0.9 0.7</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>2.2 0.9 0.7</size></box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.7 0.1 1</ambient>
+            <diffuse>0.1 0.7 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="person_marker_1">
+      <static>true</static>
+      <pose>0.8 0.2 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.18</radius>
+              <length>1.0</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.18</radius>
+              <length>1.0</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.9 0.9 0.1 1</ambient>
+            <diffuse>0.9 0.9 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="person_marker_2">
+      <static>true</static>
+      <pose>-0.6 -0.6 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.18</radius>
+              <length>1.0</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.18</radius>
+              <length>1.0</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.9 0.5 0.1 1</ambient>
+            <diffuse>0.9 0.5 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Orange translucent "restricted zone" marker (image-space demo alignment is handled in vision_node). -->
+    <model name="restricted_zone_marker">
+      <static>true</static>
+      <pose>0.2 0.4 0.01 0 0 0.2</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>3.0 2.5 0.02</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>3.0 2.5 0.02</size></box>
+          </geometry>
+          <material>
+            <ambient>1.0 0.55 0.0 0.35</ambient>
+            <diffuse>1.0 0.55 0.0 0.35</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Fixed camera looking at the demo area. -->
+    <model name="fixed_camera">
+      <static>true</static>
+      <!-- Elevated diagonal / top-down view aimed at the origin. -->
+      <pose>0 0 8.0 0 1.57 0.35</pose>
+      <link name="link">
+        <sensor name="demo_camera" type="camera">
+          <always_on>true</always_on>
+          <update_rate>20</update_rate>
+          <visualize>false</visualize>
+          <!-- Note: Gazebo Sim may namespace sensor topics under /world/.../sensor/...
+               Keep the sensor default topic and use ros_gz_bridge remapping to expose
+               it as /camera/image_raw on the ROS side for the demo. -->
+          <camera>
+            <horizontal_fov>1.047</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.1</near>
+              <far>100</far>
+            </clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+
+  </world>
+</sdf>
