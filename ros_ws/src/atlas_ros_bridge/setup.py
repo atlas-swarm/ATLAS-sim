@@ -47,6 +47,8 @@ setup(
             "demo_mission_state_node = atlas_ros_bridge.demo_mission_state_node:main",
             "demo_threat_event_node = atlas_ros_bridge.demo_threat_event_node:main",
             "demo_dashboard_node = atlas_ros_bridge.demo_dashboard_node:main",
+            'demo_data_logger_node = atlas_ros_bridge.demo_data_logger_node:main',
+            'demo_web_dashboard_node = atlas_ros_bridge.demo_web_dashboard_node:main',
         ]
     },
 )
