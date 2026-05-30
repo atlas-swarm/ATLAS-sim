@@ -40,7 +40,7 @@
           <geometry>
             <plane>
               <normal>0 0 1</normal>
-              <size>200 200</size>
+              <size>900 700</size>
             </plane>
           </geometry>
         </collision>
@@ -48,7 +48,7 @@
           <geometry>
             <plane>
               <normal>0 0 1</normal>
-              <size>200 200</size>
+              <size>900 700</size>
             </plane>
           </geometry>
           <material>
@@ -64,10 +64,98 @@
     <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands" />
     <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster" />
     <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <!-- Prefer Ogre2 for headless rendering paths. -->
       <render_engine>ogre2</render_engine>
     </plugin>
 
-    <!-- A few simple static "vehicle-like" boxes and obstacles. -->
+    <!-- Demo environment: simple suburban block (no external assets). -->
+    <model name="road_main">
+      <static>true</static>
+      <pose>160 80 0.01 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>420 70</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.06 0.06 0.07 1</ambient>
+            <diffuse>0.08 0.08 0.10 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="road_cross">
+      <static>true</static>
+      <pose>160 80 0.011 0 0 1.5708</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>320 55</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.06 0.06 0.07 1</ambient>
+            <diffuse>0.08 0.08 0.10 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="building_block_1">
+      <static>true</static>
+      <pose>60 140 6 0 0 0.2</pose>
+      <link name="link">
+        <collision name="collision"><geometry><box><size>40 30 12</size></box></geometry></collision>
+        <visual name="visual">
+          <geometry><box><size>40 30 12</size></box></geometry>
+          <material><ambient>0.20 0.22 0.28 1</ambient><diffuse>0.20 0.22 0.28 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="building_block_2">
+      <static>true</static>
+      <pose>250 150 8 0 0 -0.3</pose>
+      <link name="link">
+        <collision name="collision"><geometry><box><size>60 26 16</size></box></geometry></collision>
+        <visual name="visual">
+          <geometry><box><size>60 26 16</size></box></geometry>
+          <material><ambient>0.25 0.22 0.18 1</ambient><diffuse>0.25 0.22 0.18 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="warehouse_1">
+      <static>true</static>
+      <pose>260 20 5 0 0 0.1</pose>
+      <link name="link">
+        <collision name="collision"><geometry><box><size>80 40 10</size></box></geometry></collision>
+        <visual name="visual">
+          <geometry><box><size>80 40 10</size></box></geometry>
+          <material><ambient>0.18 0.20 0.22 1</ambient><diffuse>0.18 0.20 0.22 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="houses_row">
+      <static>true</static>
+      <pose>40 20 1.5 0 0 0</pose>
+      <link name="link">
+        <visual name="house1"><pose>0 0 1.5 0 0 0</pose><geometry><box><size>12 10 3</size></box></geometry><material><ambient>0.30 0.25 0.22 1</ambient><diffuse>0.30 0.25 0.22 1</diffuse></material></visual>
+        <visual name="house2"><pose>20 0 1.5 0 0 0</pose><geometry><box><size>12 10 3</size></box></geometry><material><ambient>0.22 0.28 0.30 1</ambient><diffuse>0.22 0.28 0.30 1</diffuse></material></visual>
+        <visual name="house3"><pose>40 0 1.5 0 0 0</pose><geometry><box><size>12 10 3</size></box></geometry><material><ambient>0.28 0.22 0.30 1</ambient><diffuse>0.28 0.22 0.30 1</diffuse></material></visual>
+        <visual name="house4"><pose>60 0 1.5 0 0 0</pose><geometry><box><size>12 10 3</size></box></geometry><material><ambient>0.30 0.30 0.22 1</ambient><diffuse>0.30 0.30 0.22 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <!-- A few simple static "vehicle-like" props and obstacles. -->
+
     <model name="vehicle_box_1">
       <static>true</static>
       <pose>1.5 -0.5 0.25 0 0 0.2</pose>

@@ -86,14 +86,29 @@ class DemoDashboardNode(Node):
         mission_state = str(tel.get("mission_state", "-"))
         flight_mode = str(tel.get("flight_mode", "-"))
         wp = tel.get("current_waypoint", "-")
-        batt = tel.get("battery_pct", "-")
-        lat = tel.get("lat", None)
-        lon = tel.get("lon", None)
-        alt = tel.get("alt", None)
+
+        vehicles = tel.get("vehicles") if isinstance(tel.get("vehicles"), list) else None
+        if not vehicles:
+            vehicles = [tel]
+
+        lead = vehicles[0] if vehicles and isinstance(vehicles[0], dict) else {}
+
+        batt = lead.get("battery_pct", "-")
+        lat = lead.get("lat", None)
+        lon = lead.get("lon", None)
+        alt = lead.get("alt", lead.get("z", None))
 
         pos = "-"
         if isinstance(lat, (int, float)) and isinstance(lon, (int, float)) and isinstance(alt, (int, float)):
             pos = f"lat={lat:.5f}, lon={lon:.5f}, alt={alt:.1f}m"
+
+        vehicles_line = "-"
+        if vehicles:
+            vehicles_line = ", ".join(
+                f"{str(v.get('uav_id','uav'))}:({float(v.get('x',0.0)):.0f},{float(v.get('y',0.0)):.0f})"
+                for v in vehicles[:5]
+                if isinstance(v, dict)
+            )
 
         last_threat = "-"
         threat_level = None
@@ -148,6 +163,7 @@ class DemoDashboardNode(Node):
             f"Mission State : {mission_state}",
             f"Flight Mode   : {flight_mode}",
             f"UAV Position  : {pos}",
+            f"Swarm (x,y)   : {vehicles_line}",
             f"Battery       : {batt_str}",
             f"Waypoint      : {wp}",
             f"Threat        : {last_threat}",
