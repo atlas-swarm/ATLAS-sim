@@ -122,493 +122,579 @@ def _normalize_vehicles(tel: dict[str, Any] | None) -> list[dict[str, Any]]:
     return [legacy]
 
 
-_HTML = """<!doctype html>
+_HTML = r"""
+<!doctype html>
 <html>
 <head>
-  <meta charset=
-    "utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ATLAS Final Demo</title>
   <style>
-    :root {
-      --bg: #0b1020;
-      --panel: #111a33;
-      --panel2: #0f1730;
-      --text: #e9eefc;
-      --muted: #aeb7d6;
-      --ok: #27d07d;
-      --warn: #ffcc66;
-      --bad: #ff5c6c;
-      --accent: #69a7ff;
-    }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); }
-    header { padding: 14px 16px; background: linear-gradient(90deg, #121b36, #0b1020); border-bottom: 1px solid #22305f; }
-    header h1 { margin: 0; font-size: 18px; letter-spacing: 0.4px; }
-    header .sub { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    body { margin: 0; font-family: Arial, sans-serif; background: #061326; color: #e8f4ff; }
+    header { padding: 14px 18px; background: #09264d; border-bottom: 1px solid #1c7ed6; }
+    h1 { margin: 0; font-size: 22px; }
+    .sub { color: #9bd0ff; margin-top: 4px; font-size: 13px; }
     .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; padding: 12px; }
-    .panel { background: var(--panel); border: 1px solid #22305f; border-radius: 10px; padding: 12px; }
-    .panel h2 { margin: 0 0 10px 0; font-size: 14px; color: #d9e4ff; }
-    .row { display:flex; gap: 10px; flex-wrap: wrap; }
-    .k { color: var(--muted); }
-    .v { color: var(--text); }
-    .pill { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border:1px solid #2a3a77; background: var(--panel2); }
-    .pill.ok { border-color: #1b7a4a; color: var(--ok); }
-    .pill.warn { border-color: #a77f1b; color: var(--warn); }
-    .pill.bad { border-color: #8a1f2d; color: var(--bad); }
-    .cards { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-    .card { background: var(--panel2); border: 1px solid #22305f; border-radius: 10px; padding: 10px; }
-    .card h3 { margin: 0 0 8px 0; font-size: 13px; }
-    .kv { display:grid; grid-template-columns: 110px 1fr; gap: 4px 10px; font-size: 12px; }
-    button { background: #1b2b57; border: 1px solid #2a3a77; color: var(--text); padding: 8px 10px; border-radius: 10px; cursor:pointer; font-size: 12px; }
-    button:hover { border-color: #4d69d7; }
-    button.primary { background: #22408a; }
-    button.danger { background: #6a1f2d; border-color: #8a1f2d; }
-    button.good { background: #1b5a3b; border-color: #1b7a4a; }
-    .cmdgrid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-    .flex { display:flex; gap:10px; align-items:center; }
-    input[type=number] { background: var(--panel2); border:1px solid #22305f; color: var(--text); padding: 7px 8px; border-radius: 10px; width: 90px; }
-    canvas { width: 100%; height: 260px; background: #0a0f22; border: 1px solid #22305f; border-radius: 10px; }
-    img.cam { width: 100%; height: 260px; object-fit: cover; background: #0a0f22; border: 1px solid #22305f; border-radius: 10px; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; color: #cfe0ff; }
-    .small { font-size: 12px; color: var(--muted); }
-    .split { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    @media (max-width: 1000px) {
-      .grid { grid-template-columns: 1fr; }
-      .cards { grid-template-columns: 1fr; }
-      .cmdgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .split { grid-template-columns: 1fr; }
-    }
+    .panel { background: #0b1f3d; border: 1px solid #1c7ed6; border-radius: 10px; padding: 12px; box-shadow: 0 0 12px rgba(0, 140, 255, 0.18); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .badge { background: #083b75; border: 1px solid #30a8ff; border-radius: 999px; padding: 4px 9px; font-size: 12px; color: #cdefff; }
+    .ok { background: #063; border-color: #0f8; }
+    .warn { background: #5a3100; border-color: #fa0; }
+    .danger { background: #700; border-color: #f55; }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); gap: 10px; margin-top: 10px; }
+    .card { background: #102d55; border: 1px solid #2e9cff; border-radius: 8px; padding: 10px; }
+    .card h3 { margin: 0 0 8px 0; color: #6ee7ff; }
+    .kv { display: grid; grid-template-columns: 90px 1fr; gap: 4px; font-size: 13px; }
+    .k { color: #94caff; }
+    canvas { width: 100%; height: 360px; background: #07182f; border: 1px solid #1c7ed6; border-radius: 8px; }
+    button { border: none; border-radius: 7px; padding: 10px 14px; color: white; background: #1264d8; cursor: pointer; font-weight: bold; }
+    button:hover { filter: brightness(1.15); }
+    .red { background: #d6336c; }
+    .green { background: #099268; }
+    .yellow { background: #e67700; }
+    input { background: #061326; border: 1px solid #1c7ed6; color: #e8f4ff; border-radius: 6px; padding: 8px; width: 80px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+    th, td { border-bottom: 1px solid #24496f; padding: 6px; text-align: left; }
+    th { color: #9bd0ff; background: rgba(9, 38, 77, 0.55); position: sticky; top: 0; }
+    table.telemetry tbody tr:nth-child(even) { background: rgba(16, 45, 85, 0.35); }
+    table.telemetry tbody tr:hover { background: rgba(46, 156, 255, 0.12); }
+    .tag { display:inline-block; padding: 2px 7px; border-radius: 999px; border: 1px solid #30a8ff; font-size: 11px; color: #cdefff; background: rgba(8,59,117,0.7); }
+    .tag.ok { border-color: #0f8; color: #b7ffd7; background: rgba(0,102,51,0.55); }
+    .tag.warn { border-color: #fa0; color: #ffe3b0; background: rgba(90,49,0,0.55); }
+    .tag.danger { border-color: #f55; color: #ffd0d6; background: rgba(112,0,0,0.55); }
+    .tag.dim { border-color: #24496f; color: #9bd0ff; background: rgba(6,19,38,0.6); }
+    .btnlink { display:inline-block; margin: 3px 6px 3px 0; padding: 8px 10px; border-radius: 7px; border: 1px solid #30a8ff; color: #e8f4ff; background: rgba(8,59,117,0.55); text-decoration: none; font-weight: bold; font-size: 12px; }
+    .btnlink:hover { filter: brightness(1.15); }
+    pre { white-space: pre-wrap; background: #061326; border-radius: 8px; padding: 8px; max-height: 220px; overflow: auto; }
+    .smallerr { color: #ffb6c1; margin-top: 6px; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>ATLAS Final Demo — Unified Dashboard</h1>
-    <div class="sub">Single-screen observe + control: telemetry, threat, vision, commands, logs.</div>
-  </header>
+<header>
+  <h1>ATLAS Final Demo — Official Operator Dashboard</h1>
+  <div class="sub">Official UI on <b>localhost:8088</b>. Uses <b>/api/state</b> + <b>/api/command</b>. QGC is a separate native app.</div>
+  <div id="fatal" class="smallerr"></div>
+</header>
 
-  <div class="grid">
-    <div class="panel">
-      <h2>Mission Overview</h2>
-      <div class="row">
-        <span class="pill" id="pillMission">MISSION</span>
-        <span class="pill" id="pillMode">MODE</span>
-        <span class="pill" id="pillThreat">THREAT</span>
-        <span class="pill" id="pillCamera">CAMERA</span>
-      </div>
-      <div style="height:10px"></div>
-      <div class="split">
-        <div>
-          <div class="small">Swarm / UAV Cards</div>
-          <div style="height:8px"></div>
-          <div class="cards" id="uavCards"></div>
-        </div>
-        <div>
-          <div class="small">Map View (local x/y)</div>
-          <div style="height:8px"></div>
-          <canvas id="map" width="600" height="320"></canvas>
-        </div>
-      </div>
-      <div style="height:10px"></div>
-      <div class="small">Telemetry Table</div>
-      <div class="mono" id="telTable">-</div>
+<div class="grid">
+  <section class="panel">
+    <div class="row">
+      <span id="apiBadge" class="badge warn">API: waiting</span>
+      <span id="vehicleBadge" class="badge">Vehicles: -</span>
+      <span id="missionBadge" class="badge">Mission: -</span>
+      <span id="modeBadge" class="badge">Mode: -</span>
+      <span id="threatBadge" class="badge">Threat: none</span>
     </div>
 
-    <div class="panel">
-      <h2>Camera View</h2>
-      <img class="cam" id="cam" src="/camera.mjpg" alt="camera" />
-      <div class="small" id="camHint" style="margin-top:6px"></div>
+    <h2>Swarm / UAV Cards</h2>
+    <div id="cards" class="cards"></div>
+
+    <h2>Map View (local x/y)</h2>
+    <canvas id="map" width="900" height="360"></canvas>
+
+    <h2>Telemetry Table</h2>
+    <table class="telemetry">
+      <thead>
+        <tr>
+          <th>UAV</th>
+          <th>SysID</th>
+          <th>Mission</th>
+          <th>Mode</th>
+          <th>Battery</th>
+          <th>Alt</th>
+          <th>Heading</th>
+          <th>Speed</th>
+          <th>Local X/Y/Z</th>
+          <th>Lat/Lon</th>
+          <th>Age</th>
+        </tr>
+      </thead>
+      <tbody id="table"></tbody>
+    </table>
+
+    <h2>Live Telemetry Feed</h2>
+    <pre id="feed">waiting...</pre>
+  </section>
+
+  <section class="panel">
+    <h2>Runtime Commands</h2>
+
+    <div class="sub"><b>Mission controls</b></div>
+    <div class="row">
+      <button class="green" onclick="sendCmd({command:'resume'})">Resume</button>
+      <button class="yellow" onclick="sendCmd({command:'pause'})">Pause</button>
+      <button class="red" onclick="sendCmd({command:'rtl'})">RTL</button>
+      <button onclick="sendCmd({command:'reset_demo'})">Reset Demo</button>
     </div>
 
-    <div class="panel">
-      <h2>Threat / Scoring</h2>
-      <div class="kv" style="grid-template-columns: 140px 1fr">
-        <div class="k">Level</div><div class="v" id="threatLevel">NONE</div>
-        <div class="k">Object</div><div class="v" id="threatObject">-</div>
-        <div class="k">Final score</div><div class="v" id="threatScore">-</div>
-        <div class="k">Affiliation</div><div class="v" id="threatAff">-</div>
-        <div class="k">Behavior</div><div class="v" id="threatBeh">-</div>
-        <div class="k">Action</div><div class="v" id="threatAction">-</div>
-        <div class="k">Source</div><div class="v" id="threatSource">-</div>
-      </div>
-      <div style="height:8px"></div>
-      <div class="small">Reason</div>
-      <div class="mono" id="threatReason">-</div>
+    <div style="height:8px"></div>
+    <div class="sub"><b>Threat controls</b></div>
+    <div class="row">
+      <button class="red" onclick="sendCmd({command:'trigger_threat', level:'HIGH', object_type:'person', reason:'dashboard trigger'})">Trigger HIGH Threat</button>
+      <button onclick="sendCmd({command:'clear_threat'})">Clear Threat</button>
     </div>
 
-    <div class="panel">
-      <h2>Command Panel</h2>
-      <div class="cmdgrid">
-        <button class="good" onclick="sendCmd({command:'resume'})">Resume</button>
-        <button onclick="sendCmd({command:'pause'})">Pause</button>
-        <button class="danger" onclick="sendCmd({command:'rtl'})">RTL</button>
-        <button class="primary" onclick="sendCmd({command:'reset_demo'})">Reset Demo</button>
-
-        <button class="danger" onclick="sendCmd({command:'trigger_threat', level:'HIGH', object_type:'person', reason:'dashboard trigger'})">Trigger HIGH Threat</button>
-        <button onclick="sendCmd({command:'clear_threat'})">Clear Threat</button>
-
-        <button onclick="bumpSpeed(-1.0)">Speed -</button>
-        <button onclick="bumpSpeed(+1.0)">Speed +</button>
-      </div>
-      <div style="height:10px"></div>
-      <div class="flex">
-        <div class="small">Speed:</div>
-        <input id="speed" type="number" step="0.5" value="4.0" />
-        <button onclick="sendCmd({command:'set_speed', value: parseFloat(document.getElementById('speed').value)})">Set Speed</button>
-
-        <div style="width:10px"></div>
-        <div class="small">Patrol scale:</div>
-        <input id="scale" type="number" step="0.25" value="1.0" />
-        <button onclick="sendCmd({command:'set_patrol_scale', value: parseFloat(document.getElementById('scale').value)})">Set Scale</button>
-      </div>
-      <div style="height:8px"></div>
-      <div class="small" id="cmdResult"></div>
+    <div style="height:8px"></div>
+    <div class="sub"><b>Tuning</b></div>
+    <div class="row">
+      <label>Speed</label>
+      <input id="speed" type="number" value="6.0" step="0.5">
+      <button onclick="sendCmd({command:'set_speed', value:Number(document.getElementById('speed').value)})">Set Speed</button>
+      <label>Patrol Scale</label>
+      <input id="scale" type="number" value="2.0" step="0.5">
+      <button onclick="sendCmd({command:'set_patrol_scale', value:Number(document.getElementById('scale').value)})">Set Scale</button>
     </div>
+    <p id="cmdStatus" class="sub">No command sent yet.</p>
 
-    <div class="panel">
-      <h2>System Status</h2>
-      <div class="kv" style="grid-template-columns: 170px 1fr">
-        <div class="k">CommandCenter bridge</div><div class="v" id="cc">-</div>
-        <div class="k">Simulation bridge</div><div class="v" id="sim">-</div>
-        <div class="k">Last command</div><div class="v" id="lastCmd">-</div>
-        <div class="k">Vision detections</div><div class="v" id="vision">-</div>
-      </div>
+    <h2>System Health</h2>
+    <div id="system"></div>
+
+    <h2>Gazebo</h2>
+    <div id="gazebo"></div>
+
+    <h2>Threat</h2>
+    <div id="threat"></div>
+
+    <h2>Raw Vehicles Fallback</h2>
+    <pre id="vehiclesRaw">waiting...</pre>
+
+    <h2>Logs / Evidence</h2>
+    <div class="sub">Downloads</div>
+    <div class="row">
+      <a class="btnlink" href="/api/logs/telemetry_log.jsonl">telemetry_log.jsonl</a>
+      <a class="btnlink" href="/api/logs/telemetry_log.csv">telemetry_log.csv</a>
+      <a class="btnlink" href="/api/logs/threat_log.jsonl">threat_log.jsonl</a>
+      <a class="btnlink" href="/api/logs/command_log.jsonl">command_log.jsonl</a>
+      <a class="btnlink" href="/api/logs/incident_log.jsonl">incident_log.jsonl</a>
     </div>
+    <div class="sub">Log directory</div>
+    <pre id="logDir">-</pre>
+    <div class="sub">Files</div>
+    <pre id="logFiles">-</pre>
+    <div class="sub">Recent commands</div>
+    <pre id="cmdLog">-</pre>
+    <div class="sub">Recent threats</div>
+    <pre id="thrLog">-</pre>
+    <div class="sub">Recent incidents</div>
+    <pre id="incLog">-</pre>
 
-    <div class="panel">
-      <h2>Logs / Events</h2>
-      <div class="small">Log directory</div>
-      <div class="mono" id="logDir">-</div>
-      <div style="height:8px"></div>
-
-      <div class="small">Log file status</div>
-      <div class="mono" id="logFiles">-</div>
-      <div style="height:8px"></div>
-
-      <div class="small">Recent Commands</div>
-      <div class="mono" id="cmdHist">-</div>
-      <div style="height:8px"></div>
-
-      <div class="small">Recent Threats</div>
-      <div class="mono" id="thrHist">-</div>
-      <div style="height:8px"></div>
-
-      <div class="small">Recent Incidents</div>
-      <div class="mono" id="incHist">-</div>
-
-      <div style="height:8px"></div>
-      <details>
-        <summary class="small">Raw JSON (tail)</summary>
-        <div class="mono" id="rawLogs">-</div>
-      </details>
-    </div>
-  </div>
+    <h2>Raw State (debug)</h2>
+    <details>
+      <summary class="sub">Show raw /api/state JSON</summary>
+      <pre id="raw">waiting...</pre>
+    </details>
+  </section>
+</div>
 
 <script>
 let lastState = null;
+let feedLines = [];
 
-function pill(el, text, cls) {
-  el.textContent = text;
-  el.className = 'pill ' + cls;
+function txt(v, fb='-') {
+  return (v === undefined || v === null || Number.isNaN(v)) ? fb : String(v);
+}
+function num(v, fb=0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fb;
+}
+function fixed(v, d=1, fb='-') {
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toFixed(d) : fb;
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function fmt(n, digits) {
-  if (typeof n !== 'number' || !isFinite(n)) return '-';
-  return n.toFixed(digits);
+function badge(textValue, cls) {
+  const c = cls ? String(cls) : 'dim';
+  return `<span class="tag ${c}">${esc(textValue)}</span>`;
 }
 
-function fmtTime(ms) {
-  if (typeof ms !== 'number' || !isFinite(ms)) return '';
+function batteryClass(pct) {
+  const p = num(pct, NaN);
+  if (!Number.isFinite(p)) return 'dim';
+  if (p > 60) return 'ok';
+  if (p >= 30) return 'warn';
+  return 'danger';
+}
+
+function modeClass(mode) {
+  const m = String(mode || '').toUpperCase();
+  if (m === 'AUTO') return 'ok';
+  if (m === 'RTL') return 'warn';
+  if (!m) return 'dim';
+  return 'warn';
+}
+
+function missionClass(state) {
+  const s = String(state || '').toUpperCase();
+  if (s === 'RUNNING') return 'ok';
+  if (s === 'PAUSED') return 'warn';
+  if (!s) return 'dim';
+  return 'warn';
+}
+
+function fmtTimeMs(ms) {
+  const n = num(ms, NaN);
+  if (!Number.isFinite(n)) return '--:--:--';
   try {
-    return new Date(ms).toLocaleTimeString();
+    return new Date(n).toLocaleTimeString();
   } catch (_) {
-    return String(ms);
+    return String(n);
   }
 }
 
-function shortPayload(p) {
-  if (!p || typeof p !== 'object') return '';
-  const keep = ['value','level','object_type','reason','mode','target_uav'];
-  const parts = [];
-  for (const k of keep) {
-    if (p[k] !== undefined) parts.push(`${k}=${String(p[k])}`);
+function safeParseJsonText(raw, fallback=null) {
+  if (raw === undefined || raw === null) return fallback;
+  if (typeof raw !== 'string') return raw;
+  const s = raw.trim();
+  if (!s.length) return fallback;
+  try { return JSON.parse(s); } catch (_) { return fallback; }
+}
+
+function showFatal(msg) {
+  const el = document.getElementById('fatal');
+  if (el) el.textContent = String(msg || '');
+}
+
+window.onerror = function(message, source, lineno, colno, error) {
+  showFatal(error || message);
+  return false;
+};
+window.addEventListener('unhandledrejection', function(ev) {
+  showFatal(ev && ev.reason ? ev.reason : 'Unhandled promise rejection');
+});
+
+async function fetchState() {
+  try {
+    const r = await fetch('/api/state', {cache:'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const raw = await r.text();
+    const state = safeParseJsonText(raw, null);
+    if (!state || typeof state !== 'object') throw new Error('Invalid JSON from /api/state');
+
+    lastState = state;
+    render(state);
+    document.getElementById('apiBadge').textContent = 'API: OK';
+    document.getElementById('apiBadge').className = 'badge ok';
+    showFatal('');
+  } catch (e) {
+    document.getElementById('apiBadge').textContent = 'API: ERROR';
+    document.getElementById('apiBadge').className = 'badge danger';
+    showFatal('API error: ' + e);
   }
-  if (!parts.length) return '';
-  return parts.join(' ');
-}
-
-function renderCommands(entries) {
-  return entries.map(e => {
-    const t = fmtTime(e.timestamp);
-    const cmd = e.command || '';
-    const src = e.source || '';
-    const pay = shortPayload(e.payload);
-    return `${t}  ${cmd}  (${src})${pay ? '  ' + pay : ''}`;
-  }).join('\n');
-}
-
-function renderThreats(entries) {
-  const out = [];
-  for (const e of entries) {
-    const t = fmtTime(e.timestamp);
-    const assessments = Array.isArray(e.assessments) ? e.assessments : [];
-    if (!assessments.length) {
-      out.push(`${t}  NONE  (cleared)`);
-      continue;
-    }
-    for (const a of assessments.slice(0,3)) {
-      const lvl = a.threat_level || 'UNKNOWN';
-      const obj = a.object_type || '-';
-      const score = (typeof a.final_threat_score === 'number') ? a.final_threat_score.toFixed(2) : '-';
-      const reason = a.reason || '';
-      const act = a.recommended_action || e.recommendedAction || '';
-      out.push(`${t}  ${lvl}  ${obj}  score=${score}${act ? '  action=' + act : ''}${reason ? '  ' + reason : ''}`);
-    }
-  }
-  return out.join('\n');
-}
-
-function renderIncidents(entries) {
-  return entries.map(e => {
-    const t = fmtTime(e.timestamp);
-    const cat = e.category || e.type || '';
-    const msg = e.message || '';
-    return `${t}  ${cat}  ${msg}`;
-  }).join('\n');
 }
 
 async function sendCmd(payload) {
-  const box = document.getElementById('cmdResult');
-  box.textContent = 'sending...';
   try {
-    const res = await fetch('/api/command', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-    const txt = await res.text();
-    if (!res.ok) {
-      box.textContent = 'ERROR ' + res.status + ': ' + txt;
-    } else {
-      const c = payload && payload.command ? String(payload.command) : 'command';
-      box.textContent = 'Command sent: ' + c;
-    }
+    const r = await fetch('/api/command', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const text = await r.text();
+    document.getElementById('cmdStatus').textContent = 'Command sent: ' + JSON.stringify(payload) + ' | ' + text;
+    setTimeout(fetchState, 300);
   } catch (e) {
-    box.textContent = 'ERROR: ' + e;
+    document.getElementById('cmdStatus').textContent = 'Command failed: ' + e;
   }
 }
 
-function bumpSpeed(delta) {
-  let v = parseFloat(document.getElementById('speed').value || '4.0');
-  v = Math.max(0.5, Math.min(20.0, v + delta));
-  document.getElementById('speed').value = v.toFixed(1);
-  sendCmd({command:'set_speed', value:v});
-}
-
-function drawMap(state) {
-  const canvas = document.getElementById('map');
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // Background grid
-  ctx.strokeStyle = '#1b2b57';
-  ctx.lineWidth = 1;
-  for (let x=0; x<canvas.width; x+=50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
-  for (let y=0; y<canvas.height; y+=50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
-
+function render(state) {
   const vehicles = Array.isArray(state.vehicles) ? state.vehicles : [];
-  if (!vehicles.length) return;
+  const tel = (state && typeof state.telemetry === 'object' && state.telemetry) ? state.telemetry : {};
+  const mission = txt(tel.mission_state || (vehicles[0] && vehicles[0].mission_state), '-');
+  const mode = txt(tel.flight_mode || (vehicles[0] && vehicles[0].flight_mode), '-');
 
-  // Scale around current extents
-  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-  for (const v of vehicles) {
-    if (typeof v.x === 'number' && typeof v.y === 'number') {
-      minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
-      minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
-    }
-  }
-  if (!isFinite(minX)) return;
+  const nowMs = num(state.timestamp_ms, Date.now());
+  const lastTelMs = num(state.last_updates_ms && state.last_updates_ms.telemetry, 0);
+  const ageSec = (lastTelMs > 0) ? Math.max(0, (nowMs - lastTelMs) / 1000.0) : NaN;
 
-  const pad = 10;
-  const spanX = Math.max(10, maxX-minX);
-  const spanY = Math.max(10, maxY-minY);
-  const sx = (canvas.width - 2*pad) / spanX;
-  const sy = (canvas.height - 2*pad) / spanY;
-  const s = Math.min(sx, sy);
+  let threatActive = false;
+  let threatLevel = 'NONE';
+  try {
+    const t = state.threat || {};
+    const assessments = Array.isArray(t.assessments) ? t.assessments : [];
+    const top = assessments.length ? assessments[0] : null;
+    threatActive = assessments.length > 0;
+    threatLevel = top ? txt(top.threat_level, 'UNKNOWN') : 'NONE';
+  } catch (_) {}
 
-  function mapPt(x,y) {
-    const px = pad + (x - minX) * s;
-    const py = canvas.height - (pad + (y - minY) * s);
-    return [px, py];
-  }
+  document.getElementById('vehicleBadge').textContent = 'Vehicles: ' + vehicles.length;
+  document.getElementById('missionBadge').textContent = 'Mission: ' + mission;
+  document.getElementById('modeBadge').textContent = 'Mode: ' + mode;
+  document.getElementById('threatBadge').textContent = 'Threat: ' + (threatActive ? threatLevel : 'none');
+  document.getElementById('threatBadge').className = threatActive ? 'badge danger' : 'badge';
 
-  const colors = {'uav_1':'#69a7ff','uav_2':'#35e38c','uav_3':'#ff5c6c'};
-
-  for (const v of vehicles) {
-    const [px,py] = mapPt(v.x||0, v.y||0);
-    ctx.fillStyle = colors[v.uav_id] || '#ffffff';
-    ctx.beginPath(); ctx.arc(px,py,7,0,Math.PI*2); ctx.fill();
-
-    // heading marker
-    const hd = (typeof v.heading_deg === 'number') ? v.heading_deg : 0;
-    const rad = (hd/180.0)*Math.PI;
-    ctx.strokeStyle = ctx.fillStyle;
-    ctx.beginPath();
-    ctx.moveTo(px,py);
-    ctx.lineTo(px + Math.cos(rad)*14, py - Math.sin(rad)*14);
-    ctx.stroke();
-
-    ctx.fillStyle = '#cfe0ff';
-    ctx.font = '12px ui-monospace, monospace';
-    ctx.fillText(v.uav_id || 'uav', px+10, py-10);
-  }
-}
-
-function updateUI(state) {
-  lastState = state;
-
-  const tel = state.telemetry || {};
-  const missionState = (tel.mission_state || '-');
-  const flightMode = (tel.flight_mode || '-');
-
-  const pillMission = document.getElementById('pillMission');
-  const pillMode = document.getElementById('pillMode');
-  const pillThreat = document.getElementById('pillThreat');
-  const pillCamera = document.getElementById('pillCamera');
-
-  const threat = state.threat || {};
-  const assessments = Array.isArray(threat.assessments) ? threat.assessments : [];
-  const top = assessments.length ? assessments[0] : null;
-  const threatLevel = top ? (top.threat_level || 'NONE') : 'NONE';
-
-  pill(pillMission, 'Mission: ' + missionState, (missionState==='RUNNING') ? 'ok' : (missionState==='PAUSED' ? 'warn' : 'warn'));
-  pill(pillMode, 'Mode: ' + flightMode, (flightMode==='AUTO') ? 'ok' : (flightMode==='RTL' ? 'warn' : 'warn'));
-  pill(pillThreat, 'Threat: ' + threatLevel, (threatLevel==='HIGH') ? 'bad' : (threatLevel==='MEDIUM' ? 'warn' : 'ok'));
-
-  const camStatus = (typeof state.camera_status === 'string') ? state.camera_status : '';
-  if (state.gazebo_enabled === false) {
-    pill(pillCamera, 'Camera: Gazebo off', 'warn');
-  } else {
-    pill(pillCamera, camStatus ? ('Camera: ' + camStatus) : 'Camera: enabled', 'ok');
+  // Always-visible raw vehicles fallback
+  try {
+    document.getElementById('vehiclesRaw').textContent = JSON.stringify(vehicles, null, 2).slice(0, 6000);
+  } catch (_) {
+    document.getElementById('vehiclesRaw').textContent = String(vehicles);
   }
 
-  // UAV cards
-  const cards = document.getElementById('uavCards');
-  cards.innerHTML = '';
-  const vehicles = Array.isArray(state.vehicles) ? state.vehicles : [];
-  if (!vehicles.length) {
-    cards.innerHTML = '<div class="card"><h3>No telemetry received yet</h3><div class="small">Waiting for /atlas/demo/telemetry...</div></div>';
-  }
-  for (const v of vehicles) {
-    const div = document.createElement('div');
-    div.className = 'card';
-    div.innerHTML = `
-      <h3>${v.uav_id || 'uav'}</h3>
-      <div class="kv">
-        <div class="k">Mission</div><div class="v">${v.mission_state || missionState}</div>
-        <div class="k">Mode</div><div class="v">${v.flight_mode || flightMode}</div>
-        <div class="k">Lat/Lon</div><div class="v">${fmt(v.lat,5)}, ${fmt(v.lon,5)}</div>
-        <div class="k">Alt</div><div class="v">${fmt(v.alt,1)} m</div>
-        <div class="k">Local</div><div class="v">x=${fmt(v.x,1)} y=${fmt(v.y,1)} z=${fmt(v.z,1)}</div>
-        <div class="k">Battery</div><div class="v">${fmt(v.battery_pct,1)} %</div>
-      </div>`;
-    cards.appendChild(div);
-  }
-
-  // Threat panel (presentation-friendly)
-  const threatLevelEl = document.getElementById('threatLevel');
-  const threatObjectEl = document.getElementById('threatObject');
-  const threatScoreEl = document.getElementById('threatScore');
-  const threatAffEl = document.getElementById('threatAff');
-  const threatBehEl = document.getElementById('threatBeh');
-  const threatActionEl = document.getElementById('threatAction');
-  const threatSourceEl = document.getElementById('threatSource');
-  const threatReasonEl = document.getElementById('threatReason');
-
-  const topA = (assessments && assessments.length) ? assessments[0] : null;
-  threatLevelEl.textContent = topA ? (topA.threat_level || 'NONE') : 'NONE';
-  threatObjectEl.textContent = topA ? (topA.object_type || '-') : '-';
-  threatScoreEl.textContent = topA && typeof topA.final_threat_score === 'number' ? topA.final_threat_score.toFixed(2) : '-';
-  threatAffEl.textContent = topA ? `${topA.affiliation || '-'} (${fmt(topA.affiliation_score,2)})` : '-';
-  threatBehEl.textContent = topA ? fmt(topA.behavior_score,2) : '-';
-  threatActionEl.textContent = topA ? (topA.recommended_action || threat.recommendedAction || '-') : (threat.recommendedAction || '-');
-  threatSourceEl.textContent = threat.source || '-';
-  threatReasonEl.textContent = topA ? (topA.reason || '-') : '-';
-
-  // System status
-  document.getElementById('cc').textContent = JSON.stringify(state.commandcenter_status || {}, null, 0);
-  document.getElementById('sim').textContent = JSON.stringify(state.simulation_status || {}, null, 0);
-  document.getElementById('lastCmd').textContent = state.last_command || '-';
-  document.getElementById('vision').textContent = state.vision_summary || '-';
-
-  // Logs/events panel (human-friendly rendering)
-  const logs = state.logs || {};
-  document.getElementById('logDir').textContent = logs.log_dir || '-';
-
-  const files = logs.files || {};
-  const fileOrder = ['telemetry_log.jsonl','threat_log.jsonl','command_log.jsonl','incident_log.jsonl'];
-  const fileLines = fileOrder.map(name => `${name}: ${files[name] ? 'OK' : 'missing'}`);
-  document.getElementById('logFiles').textContent = fileLines.join('\n');
-
-  const cmdTail = (logs.tail && Array.isArray(logs.tail.command)) ? logs.tail.command : [];
-  const thrTail = (logs.tail && Array.isArray(logs.tail.threat)) ? logs.tail.threat : [];
-  const incTail = (logs.tail && Array.isArray(logs.tail.incident)) ? logs.tail.incident : [];
-
-  document.getElementById('cmdHist').textContent = renderCommands(cmdTail) || '-';
-  document.getElementById('thrHist').textContent = renderThreats(thrTail) || '-';
-  document.getElementById('incHist').textContent = renderIncidents(incTail) || '-';
-  document.getElementById('rawLogs').textContent = JSON.stringify(logs.tail || {}, null, 2) || '-';
-
-  // Camera hint (stable mode: no probing, no diagnostics)
-  const camHint = document.getElementById('camHint');
-  const camImg = document.getElementById('cam');
-  const camStatusText = (typeof state.camera_status === 'string') ? state.camera_status : '';
-  if (state.gazebo_enabled === false) {
-    camHint.textContent = 'Gazebo disabled in stable dashboard mode.';
-    camImg.style.display = 'none';
-  } else {
-    camHint.textContent = camStatusText || 'Gazebo enabled (camera optional).';
-    camImg.style.display = 'block';
-    if (!camImg.getAttribute('src')) camImg.setAttribute('src','/camera.mjpg');
-  }
-
-  // Telemetry table (readable)
-  const telTable = document.getElementById('telTable');
-  if (vehicles.length) {
-    const lines = [];
-    lines.push('uav_id sysid mode state batt% alt(m) spd(m/s) hdg(deg) x y lat lon');
+  // Live telemetry feed (frontend only; keep last 20 lines)
+  try {
+    const t = fmtTimeMs(nowMs);
     for (const v of vehicles) {
-      const sysid = (v.uav_id === 'uav_1') ? 1 : (v.uav_id === 'uav_2') ? 2 : (v.uav_id === 'uav_3') ? 3 : '-';
-      const spd = Math.hypot((v.vx||0),(v.vy||0));
-      lines.push(`${v.uav_id||'-'} ${sysid} ${(v.flight_mode||flightMode)} ${(v.mission_state||missionState)} ${fmt(v.battery_pct,1)} ${fmt(v.alt,1)} ${fmt(spd,1)} ${fmt(v.heading_deg,0)} ${fmt(v.x,1)} ${fmt(v.y,1)} ${fmt(v.lat,5)} ${fmt(v.lon,5)}`);
+      const spd = Math.hypot(num(v.vx, 0), num(v.vy, 0));
+      const line = `[${t}] ${txt(v.uav_id,'uav')} ${txt(v.flight_mode,'-')}/${txt(v.mission_state,'-')} alt=${fixed(v.alt,1)}m battery=${fixed(v.battery_pct,0)}% x=${fixed(v.x,1)} y=${fixed(v.y,1)} spd=${fixed(spd,1)}m/s`;
+      feedLines.push(line);
     }
-    telTable.textContent = lines.join('\n');
-  } else {
-    telTable.textContent = 'No telemetry received yet.';
-  }
+    while (feedLines.length > 20) feedLines.shift();
+    const feedEl = document.getElementById('feed');
+    if (feedEl) feedEl.textContent = feedLines.join('\n');
+  } catch (_) {}
 
-  drawMap(state);
+  // Each section must be non-fatal
+  try { renderCards(vehicles); } catch (e) { showFatal('cards render error: ' + e); }
+  try { renderTable(vehicles, {mission, mode, ageSec}); } catch (e) { showFatal('table render error: ' + e); }
+  try { drawMap(vehicles); } catch (e) { showFatal('map render error: ' + e); }
+  try { renderSystem(state, {mission, mode, ageSec}); } catch (e) { showFatal('system render error: ' + e); }
+  try { renderGazebo(state); } catch (e) {}
+  try { renderThreat(state); } catch (e) {}
+  try { renderLogs(state); } catch (e) {}
 
-  // Keep form defaults in sync if possible.
-  if (typeof state.speed_mps === 'number') {
-    document.getElementById('speed').value = state.speed_mps.toFixed(1);
-  }
-  if (typeof state.patrol_scale === 'number') {
-    document.getElementById('scale').value = state.patrol_scale.toFixed(2);
-  }
+  document.getElementById('raw').textContent = JSON.stringify(state, null, 2).slice(0, 6000);
 }
 
-async function poll() {
-  try {
-    const res = await fetch('/api/state');
-    const state = await res.json();
-    updateUI(state);
-  } catch (e) {
-    // Don’t spam; leave last UI.
+function renderCards(vehicles) {
+  const el = document.getElementById('cards');
+  if (!vehicles.length) {
+    el.innerHTML = '<div class="card"><h3>No telemetry received yet</h3><p>Waiting for /atlas/demo/telemetry...</p></div>';
+    return;
   }
+
+  el.innerHTML = vehicles.map(v => {
+    const uav = esc(txt(v.uav_id, 'uav'));
+    const ms = txt(v.mission_state, '-');
+    const fm = txt(v.flight_mode, '-');
+    const batt = num(v.battery_pct, NaN);
+    return `
+      <div class="card">
+        <h3>${uav}</h3>
+        <div class="kv">
+          <div class="k">Mission</div><div>${badge(ms, missionClass(ms))}</div>
+          <div class="k">Mode</div><div>${badge(fm, modeClass(fm))}</div>
+          <div class="k">Battery</div><div>${badge(fixed(batt,0) + '%', batteryClass(batt))}</div>
+          <div class="k">Alt</div><div>${fixed(v.alt, 1)} m</div>
+          <div class="k">Heading</div><div>${fixed(v.heading_deg, 0)}°</div>
+          <div class="k">Local</div><div>x=${fixed(v.x,1)}, y=${fixed(v.y,1)}, z=${fixed(v.z,1)}</div>
+          <div class="k">Global</div><div>${fixed(v.lat,5)}, ${fixed(v.lon,5)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
-setInterval(poll, 1000);
-poll();
+function renderTable(vehicles, meta) {
+  const el = document.getElementById('table');
+  const mission = meta && meta.mission ? String(meta.mission) : '-';
+  const mode = meta && meta.mode ? String(meta.mode) : '-';
+  const ageSec = meta && typeof meta.ageSec === 'number' ? meta.ageSec : NaN;
+
+  if (!vehicles.length) {
+    el.innerHTML = '<tr><td colspan="11">No telemetry received yet.</td></tr>';
+    return;
+  }
+
+  el.innerHTML = vehicles.map(v => {
+    const uav = esc(txt(v.uav_id, 'uav'));
+    const sysid = (v.sysid !== undefined && v.sysid !== null)
+      ? esc(txt(v.sysid))
+      : (txt(v.uav_id) === 'uav_1') ? '1' : (txt(v.uav_id) === 'uav_2') ? '2' : (txt(v.uav_id) === 'uav_3') ? '3' : '-';
+
+    const ms = txt(v.mission_state, mission);
+    const fm = txt(v.flight_mode, mode);
+    const batt = num(v.battery_pct, NaN);
+    const spd = Math.hypot(num(v.vx, 0), num(v.vy, 0));
+
+    const ageTxt = Number.isFinite(ageSec) ? fixed(ageSec, 1) + 's' : '-';
+    const ageCls = !Number.isFinite(ageSec) ? 'dim' : (ageSec < 2.0 ? 'ok' : (ageSec < 5.0 ? 'warn' : 'danger'));
+
+    return `
+      <tr>
+        <td>${uav}</td>
+        <td>${sysid}</td>
+        <td>${badge(ms, missionClass(ms))}</td>
+        <td>${badge(fm, modeClass(fm))}</td>
+        <td>${badge(fixed(batt,0) + '%', batteryClass(batt))}</td>
+        <td>${fixed(v.alt,1)} m</td>
+        <td>${fixed(v.heading_deg,0)}°</td>
+        <td>${fixed(spd,1)} m/s</td>
+        <td>${fixed(v.x,1)} / ${fixed(v.y,1)} / ${fixed(v.z,1)}</td>
+        <td>${fixed(v.lat,6)} / ${fixed(v.lon,6)}</td>
+        <td>${badge(ageTxt, ageCls)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function drawMap(vehicles) {
+  const c = document.getElementById('map');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+
+  // Dark operator grid
+  ctx.strokeStyle = '#113a68';
+  ctx.lineWidth = 1;
+  for (let x=0; x<c.width; x+=50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,c.height); ctx.stroke(); }
+  for (let y=0; y<c.height; y+=50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(c.width,y); ctx.stroke(); }
+
+  // Major grid
+  ctx.strokeStyle = '#1c6db3';
+  ctx.globalAlpha = 0.35;
+  for (let x=0; x<c.width; x+=250) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,c.height); ctx.stroke(); }
+  for (let y=0; y<c.height; y+=250) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(c.width,y); ctx.stroke(); }
+  ctx.globalAlpha = 1.0;
+
+  if (!vehicles.length) {
+    ctx.fillStyle = '#9bd0ff';
+    ctx.font = '20px Arial';
+    ctx.fillText('No telemetry received yet', 30, 50);
+    return;
+  }
+
+  const xs = vehicles.map(v => num(v.x,0));
+  const ys = vehicles.map(v => num(v.y,0));
+  const minX = Math.min(...xs, -500), maxX = Math.max(...xs, 500);
+  const minY = Math.min(...ys, -500), maxY = Math.max(...ys, 500);
+  const pad = 60;
+
+  function px(x) { return pad + (x-minX)/(maxX-minX || 1)*(c.width-2*pad); }
+  function py(y) { return c.height - (pad + (y-minY)/(maxY-minY || 1)*(c.height-2*pad)); }
+
+  // HOME marker at (0,0)
+  const hx = px(0);
+  const hy = py(0);
+  ctx.fillStyle = '#ff4d6d';
+  ctx.beginPath(); ctx.arc(hx, hy, 7, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#e8f4ff';
+  ctx.font = '14px Arial';
+  ctx.fillText('HOME (0,0)', hx + 10, hy - 10);
+
+  const colorsById = {'uav_1':'#00e5ff','uav_2':'#ffd43b','uav_3':'#69db7c'};
+
+  vehicles.forEach((v, i) => {
+    const x = num(v.x,0), y = num(v.y,0);
+    const id = txt(v.uav_id, 'uav');
+    const color = colorsById[id] || ['#00e5ff','#ffd43b','#69db7c','#ff922b'][i % 4];
+
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(px(x), py(y), 10, 0, Math.PI*2); ctx.fill();
+
+    // Outline for contrast
+    ctx.strokeStyle = '#061326';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(px(x), py(y), 10, 0, Math.PI*2); ctx.stroke();
+
+    ctx.fillStyle = '#e8f4ff';
+    ctx.font = '16px Arial';
+    ctx.fillText(id, px(x)+12, py(y)-12);
+
+    // Heading arrow
+    const hdg = num(v.heading_deg,0) * Math.PI / 180;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(px(x), py(y));
+    ctx.lineTo(px(x) + Math.sin(hdg)*28, py(y) - Math.cos(hdg)*28);
+    ctx.stroke();
+  });
+
+  // Coordinate scale hint
+  ctx.fillStyle = '#9bd0ff';
+  ctx.font = '12px Arial';
+  ctx.fillText(`x:[${fixed(minX,0)},${fixed(maxX,0)}]  y:[${fixed(minY,0)},${fixed(maxY,0)}]`, 18, c.height - 14);
+}
+
+function renderSystem(state, meta) {
+  const cc = state.commandcenter_status || {};
+  const sim = state.simulation_status || {};
+
+  const ageSec = meta && typeof meta.ageSec === 'number' ? meta.ageSec : NaN;
+  const freshCls = !Number.isFinite(ageSec) ? 'dim' : (ageSec < 2.0 ? 'ok' : (ageSec < 5.0 ? 'warn' : 'danger'));
+  const freshTxt = !Number.isFinite(ageSec) ? '-' : fixed(ageSec, 1) + 's';
+
+  const vision = txt(state.vision_summary, '-');
+  const visionCls = (vision !== '-' && vision !== '0') ? 'ok' : 'warn';
+
+  const gazeboCls = state.gazebo_enabled ? 'warn' : 'ok';
+  const gazeboTxt = state.gazebo_enabled ? 'ENABLED (optional)' : 'DISABLED (stable)';
+
+  document.getElementById('system').innerHTML = `
+    <div class="kv">
+      <div class="k">Telemetry age</div><div>${badge(freshTxt, freshCls)}</div>
+      <div class="k">Vehicle count</div><div>${esc(txt((Array.isArray(state.vehicles) ? state.vehicles.length : 0)))}</div>
+      <div class="k">CommandCenter</div><div>${badge(txt(cc.bridge_status || cc.status || '-'), (cc.bridge_status || cc.status) ? 'ok' : 'dim')}</div>
+      <div class="k">Simulation</div><div>${badge(txt(sim.bridge_status || sim.status || '-'), (sim.bridge_status || sim.status) ? 'ok' : 'dim')}</div>
+      <div class="k">Gazebo</div><div>${badge(gazeboTxt, gazeboCls)}</div>
+      <div class="k">Vision/YOLO</div><div>${badge((vision !== '-' ? ('detections=' + vision) : 'IDLE/UNAVAILABLE'), visionCls)}</div>
+      <div class="k">Last cmd</div><div>${esc(txt(state.last_command || '-'))}</div>
+    </div>
+  `;
+}
+
+function renderLogs(state) {
+  const logs = state.logs || {};
+  const files = logs.files || {};
+  const tail = logs.tail || {};
+
+  const logDirEl = document.getElementById('logDir');
+  if (logDirEl) logDirEl.textContent = txt(logs.log_dir, '-');
+
+  const fileLines = [];
+  for (const name of ['telemetry_log.jsonl','telemetry_log.csv','threat_log.jsonl','command_log.jsonl','incident_log.jsonl']) {
+    const ok = !!files[name];
+    fileLines.push(`${name}: ${ok ? 'OK' : 'missing'}`);
+  }
+  const logFilesEl = document.getElementById('logFiles');
+  if (logFilesEl) logFilesEl.textContent = fileLines.join('\n');
+
+  function fmtEntry(e) {
+    if (!e || typeof e !== 'object') return '';
+    const t = fmtTimeMs(e.timestamp || e.timestamp_ms);
+    const cmd = txt(e.command || e.type || e.category || e.message, '-');
+    const src = txt(e.source, '-');
+    return `[${t}] ${src} ${cmd}`;
+  }
+
+  const cmdLogEl = document.getElementById('cmdLog');
+  const thrLogEl = document.getElementById('thrLog');
+  const incLogEl = document.getElementById('incLog');
+
+  const cmds = Array.isArray(tail.command) ? tail.command : [];
+  const thrs = Array.isArray(tail.threat) ? tail.threat : [];
+  const incs = Array.isArray(tail.incident) ? tail.incident : [];
+
+  if (cmdLogEl) cmdLogEl.textContent = cmds.slice(-12).map(fmtEntry).filter(Boolean).join('\n') || '-';
+  if (thrLogEl) thrLogEl.textContent = thrs.slice(-8).map(fmtEntry).filter(Boolean).join('\n') || '-';
+  if (incLogEl) incLogEl.textContent = incs.slice(-8).map(fmtEntry).filter(Boolean).join('\n') || '-';
+}
+
+function renderGazebo(state) {
+  const msg = (state.gazebo_enabled === false)
+    ? 'Gazebo disabled in stable dashboard mode. Native Gazebo can be launched separately.'
+    : 'Gazebo enabled (optional/experimental).';
+  document.getElementById('gazebo').innerHTML = '<p>' + esc(msg) + '</p>';
+}
+
+function renderThreat(state) {
+  const t = state.threat;
+  if (!t) {
+    document.getElementById('threat').innerHTML = '<p>No active threat.</p>';
+    return;
+  }
+  document.getElementById('threat').innerHTML = '<pre>' + esc(JSON.stringify(t, null, 2)) + '</pre>';
+}
+
+setInterval(fetchState, 700);
+fetchState();
 </script>
 </body>
 </html>
 """
+
 
 
 class _SharedState:
@@ -926,6 +1012,12 @@ def _make_server(node: DemoWebDashboardNode, state: _SharedState, host: str, por
                 self._send_text(_HTML, status=200, content_type="text/html; charset=utf-8")
                 return
 
+            if self.path == "/favicon.ico":
+                # Ignore favicon requests (avoid noisy browser warnings).
+                self.send_response(204)
+                self.end_headers()
+                return
+
             if self.path == "/api/state":
                 # /api/state must be fast and non-blocking:
                 # - return only cached in-memory state
@@ -994,6 +1086,46 @@ def _make_server(node: DemoWebDashboardNode, state: _SharedState, host: str, por
                     "patrol_scale": patrol_scale,
                 }
                 self._send_json(payload)
+                return
+
+            if self.path.startswith("/api/logs/"):
+                # Simple log download endpoint (operator evidence export).
+                name = self.path[len("/api/logs/") :]
+                name = name.split("?", 1)[0]
+
+                allowed = {
+                    "telemetry_log.jsonl",
+                    "threat_log.jsonl",
+                    "command_log.jsonl",
+                    "incident_log.jsonl",
+                    "telemetry_log.csv",
+                }
+                if name not in allowed:
+                    self._send_text("forbidden", status=403)
+                    return
+
+                base = os.path.abspath(node._log_dir)
+                path = os.path.abspath(os.path.join(base, name))
+                if not path.startswith(base + os.sep):
+                    self._send_text("forbidden", status=403)
+                    return
+
+                try:
+                    with open(path, "rb") as fp:
+                        data = fp.read()
+                except FileNotFoundError:
+                    self._send_text("not found", status=404)
+                    return
+                except Exception as exc:
+                    self._send_text(f"error: {exc}", status=500)
+                    return
+
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Disposition", f"attachment; filename=\"{name}\"")
+                self.end_headers()
+                self.wfile.write(data)
                 return
 
             if self.path == "/camera.mjpg":
